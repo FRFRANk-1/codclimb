@@ -1,0 +1,62 @@
+[
+  {
+    "id": "rumney-main",
+    "name": "Rumney Main Cliff",
+    "region": "Rumney, NH",
+    "latitude": 43.8011,
+    "longitude": -71.8311,
+    "elevationFt": 1200,
+    "rockType": "Schist",
+    "aspect": "West",
+    "subAreas": ["Main Cliff", "5.8 Crag", "Parking Lot Wall"],
+    "notes": "Sport climbing mecca. West-facing schist dries quickly after rain."
+  },
+  {
+    "id": "rumney-waimea",
+    "name": "Rumney Waimea",
+    "region": "Rumney, NH",
+    "latitude": 43.7994,
+    "longitude": -71.8334,
+    "elevationFt": 1250,
+    "rockType": "Schist",
+    "aspect": "South",
+    "subAreas": ["Waimea", "Darth Vader Wall", "Bonsai"],
+    "notes": "South-facing, sun-soaked. Cooks in summer, magic in shoulder seasons."
+  },
+  {
+    "id": "cathedral-ledge",
+    "name": "Cathedral Ledge",
+    "region": "North Conway, NH",
+    "latitude": 44.0731,
+    "longitude": -71.1647,
+    "elevationFt": 1160,
+    "rockType": "Granite",
+    "aspect": "South",
+    "subAreas": ["Thin Air Face", "Recompense", "Funhouse"],
+    "notes": "Classic granite trad and sport. Seeps after heavy rain, dries slow."
+  },
+  {
+    "id": "cannon-cliff",
+    "name": "Cannon Cliff",
+    "region": "Franconia Notch, NH",
+    "latitude": 44.1813,
+    "longitude": -71.6925,
+    "elevationFt": 2400,
+    "rockType": "Granite",
+    "aspect": "East",
+    "subAreas": ["Whitney-Gilman Ridge", "Moby Grape", "VMC Direct"],
+    "notes": "Big alpine face. Cold, exposed, weather-sensitive. East-facing — morning sun."
+  },
+  {
+    "id": "pawtuckaway",
+    "name": "Pawtuckaway",
+    "region": "Nottingham, NH",
+    "latitude": 43.0908,
+    "longitude": -71.1733,
+    "elevationFt": 400,
+    "rockType": "Granite",
+    "aspect": "Mixed",
+    "subAreas": ["Round Pond", "Boulder Natural", "Devils Den"],
+    "notes": "Bouldering area. Forested, shaded boulders dry slower in humid weather."
+  }
+]
