@@ -15,6 +15,21 @@ final class CragListViewModel: ObservableObject {
         let score: ClimbScore
     }
 
+    /// Crags sorted by score descending (unscored crags go to the end)
+    var sortedCrags: [Crag] {
+        crags.sorted { a, b in
+            let sa = snapshots[a.id]?.score.value ?? -1
+            let sb = snapshots[b.id]?.score.value ?? -1
+            return sa > sb
+        }
+    }
+
+    /// All unique state/region tokens derived from crag regions
+    var regions: [String] {
+        let states = crags.compactMap { $0.stateAbbreviation }
+        return Array(Set(states)).sorted()
+    }
+
     func load() async {
         do {
             crags = try CragRepository.loadAll()
@@ -49,8 +64,49 @@ final class CragListViewModel: ObservableObject {
     }
 }
 
+// MARK: - State abbreviation helper
+
+private extension Crag {
+    /// Extracts the 2-letter state abbreviation from the region string, e.g. "Rumney, NH" → "NH"
+    var stateAbbreviation: String? {
+        let parts = region.components(separatedBy: ", ")
+        if let last = parts.last, last.count == 2 {
+            return last.uppercased()
+        }
+        // Fallback: look for a known state suffix after the last comma
+        let lower = region.lowercased()
+        let stateMap: [String: String] = [
+            "nh": "NH", "ny": "NY", "wv": "WV", "ky": "KY", "wi": "WI",
+            "ar": "AR", "tn": "TN", "nc": "NC", "al": "AL", "md": "MD",
+            "ca": "CA", "or": "OR", "wa": "WA", "id": "ID", "co": "CO",
+            "wy": "WY", "ut": "UT", "nv": "NV", "tx": "TX", "az": "AZ",
+            "ga": "GA", "mo": "MO"
+        ]
+        for (key, value) in stateMap {
+            if lower.hasSuffix(", \(key)") || lower.contains(" \(key)") { return value }
+        }
+        return nil
+    }
+}
+
+// MARK: - CragListView
+
 struct CragListView: View {
     @StateObject private var viewModel = CragListViewModel()
+    @State private var searchText = ""
+    @State private var selectedRegion: String? = nil
+
+    private var filteredCrags: [Crag] {
+        viewModel.sortedCrags.filter { crag in
+            let matchesSearch = searchText.isEmpty
+                || crag.name.localizedCaseInsensitiveContains(searchText)
+                || crag.region.localizedCaseInsensitiveContains(searchText)
+                || crag.rockType.localizedCaseInsensitiveContains(searchText)
+            let matchesRegion = selectedRegion == nil
+                || crag.stateAbbreviation == selectedRegion
+            return matchesSearch && matchesRegion
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -58,7 +114,19 @@ struct CragListView: View {
                 VStack(alignment: .leading, spacing: Theme.Metrics.sectionSpacing) {
                     HeroHeader()
                     FeaturesRow()
-                    AreasSection(viewModel: viewModel)
+
+                    // Region filter chips
+                    if !viewModel.regions.isEmpty {
+                        RegionFilterRow(
+                            regions: viewModel.regions,
+                            selected: $selectedRegion
+                        )
+                    }
+
+                    AreasSection(
+                        crags: filteredCrags,
+                        viewModel: viewModel
+                    )
                 }
                 .padding(.horizontal, Theme.Metrics.cardPadding)
                 .padding(.bottom, 32)
@@ -66,6 +134,7 @@ struct CragListView: View {
             .background(Theme.Palette.background.ignoresSafeArea())
             .navigationTitle("CodClimb")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: "Search crags, states, rock type…")
             .refreshable { await viewModel.refreshAll() }
         }
         .task { await viewModel.load() }
@@ -93,8 +162,56 @@ private struct FeaturesRow: View {
         HStack(spacing: 10) {
             FeatureChip(icon: "cloud.sun.fill", title: "Weather", subtitle: "Live + forecast")
             FeatureChip(icon: "drop.fill", title: "Dryness", subtitle: "Hours since rain")
-            FeatureChip(icon: "checkmark.seal.fill", title: "Score", subtitle: "Go / no-go")
+            FeatureChip(icon: "checkmark.seal.fill", title: "Score", subtitle: "Best first")
         }
+    }
+}
+
+// MARK: - Region filter chips
+
+private struct RegionFilterRow: View {
+    let regions: [String]
+    @Binding var selected: String?
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FilterChip(label: "All", isSelected: selected == nil) {
+                    selected = nil
+                }
+                ForEach(regions, id: \.self) { region in
+                    FilterChip(label: region, isSelected: selected == region) {
+                        selected = selected == region ? nil : region
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct FilterChip: View {
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(Theme.Typography.caption)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? Theme.Palette.accent : Theme.Palette.surface)
+                )
+                .foregroundStyle(isSelected ? .white : Theme.Palette.textSecondary)
+                .overlay(
+                    Capsule()
+                        .stroke(isSelected ? Theme.Palette.accent : Theme.Palette.divider, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -125,17 +242,22 @@ private struct FeatureChip: View {
 }
 
 private struct AreasSection: View {
+    let crags: [Crag]
     @ObservedObject var viewModel: CragListViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Areas")
+                Text(crags.isEmpty ? "No results" : "Areas")
                     .font(Theme.Typography.title)
                     .foregroundStyle(Theme.Palette.textPrimary)
                 Spacer()
                 if viewModel.isLoading {
                     ProgressView().controlSize(.small)
+                } else {
+                    Text("\(crags.count)")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.textTertiary)
                 }
             }
             if let error = viewModel.loadError {
@@ -143,7 +265,14 @@ private struct AreasSection: View {
                     .font(Theme.Typography.callout)
                     .foregroundStyle(Theme.Palette.nogo)
             }
-            ForEach(viewModel.crags) { crag in
+            if crags.isEmpty && !viewModel.isLoading {
+                Text("Try a different search or filter.")
+                    .font(Theme.Typography.callout)
+                    .foregroundStyle(Theme.Palette.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 32)
+            }
+            ForEach(crags) { crag in
                 NavigationLink {
                     CragDetailView(crag: crag, preloaded: viewModel.snapshots[crag.id])
                 } label: {
@@ -155,10 +284,11 @@ private struct AreasSection: View {
     }
 }
 
-private struct CragCard: View {
+struct CragCard: View {
     let crag: Crag
     let snapshot: CragListViewModel.CragSnapshot?
     let isLoading: Bool
+    @EnvironmentObject private var favorites: FavoritesStore
 
     var body: some View {
         HStack(spacing: 16) {
@@ -180,7 +310,10 @@ private struct CragCard: View {
                 .padding(.top, 4)
             }
             Spacer()
-            ScoreBadgeView(score: snapshot?.score, isLoading: isLoading, size: .medium)
+            VStack(spacing: 10) {
+                ScoreBadgeView(score: snapshot?.score, isLoading: isLoading, size: .medium)
+                BookmarkButton(crag: crag)
+            }
         }
         .padding(Theme.Metrics.cardPadding)
         .background(
@@ -190,8 +323,32 @@ private struct CragCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
-                .stroke(Theme.Palette.divider, lineWidth: 1)
+                .stroke(favorites.isFavorite(crag) ? Theme.Palette.accent.opacity(0.4) : Theme.Palette.divider,
+                        lineWidth: 1)
         )
+    }
+}
+
+/// Reusable bookmark toggle button — used in CragCard and CragDetailView.
+struct BookmarkButton: View {
+    let crag: Crag
+    @EnvironmentObject private var favorites: FavoritesStore
+
+    var isFav: Bool { favorites.isFavorite(crag) }
+
+    var body: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                favorites.toggle(crag)
+            }
+        } label: {
+            Image(systemName: isFav ? "bookmark.fill" : "bookmark")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(isFav ? Theme.Palette.accent : Theme.Palette.textTertiary)
+                .scaleEffect(isFav ? 1.15 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isFav)
+        }
+        .buttonStyle(.plain)
     }
 }
 

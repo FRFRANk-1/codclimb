@@ -5,6 +5,7 @@ final class CragDetailViewModel: ObservableObject {
     @Published private(set) var bundle: WeatherBundle?
     @Published private(set) var score: ClimbScore?
     @Published private(set) var bestWindow: WeatherSnapshot?
+    @Published private(set) var dailySummaries: [DailySummary] = []
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var error: String?
 
@@ -16,6 +17,7 @@ final class CragDetailViewModel: ObservableObject {
         self.bundle = snap.bundle
         self.score = snap.score
         self.bestWindow = scorer.bestUpcomingWindow(in: snap.bundle)
+        self.dailySummaries = snap.bundle.dailySummaries(scorer: scorer)
     }
 
     func refresh(for crag: Crag) async {
@@ -26,6 +28,7 @@ final class CragDetailViewModel: ObservableObject {
             self.bundle = bundle
             self.score = scorer.score(for: bundle)
             self.bestWindow = scorer.bestUpcomingWindow(in: bundle)
+            self.dailySummaries = bundle.dailySummaries(scorer: scorer)
             self.error = nil
         } catch {
             self.error = "Couldn't reach Open-Meteo. Pull to retry."
@@ -38,6 +41,9 @@ struct CragDetailView: View {
     let preloaded: CragListViewModel.CragSnapshot?
 
     @StateObject private var viewModel = CragDetailViewModel()
+    @EnvironmentObject private var notifications: NotificationService
+    @EnvironmentObject private var reportStore: ConditionReportStore
+    @State private var showingAlertSheet = false
 
     var body: some View {
         ScrollView {
@@ -56,10 +62,16 @@ struct CragDetailView: View {
                     }
                     factorsSection(score: score)
                     forecastSection(bundle: bundle)
+                    if !viewModel.dailySummaries.isEmpty {
+                        sevenDaySection(days: viewModel.dailySummaries)
+                    }
                 } else {
                     ProgressView().padding(.top, 40)
                         .frame(maxWidth: .infinity)
                 }
+                CragConditionFeedView(crag: crag)
+                    .environmentObject(reportStore)
+                alertRow
                 cragInfoCard
             }
             .padding(.horizontal, Theme.Metrics.cardPadding)
@@ -68,12 +80,21 @@ struct CragDetailView: View {
         .background(Theme.Palette.background.ignoresSafeArea())
         .navigationTitle(crag.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                BookmarkButton(crag: crag)
+            }
+        }
         .refreshable { await viewModel.refresh(for: crag) }
         .task {
             viewModel.seed(preloaded)
             if viewModel.bundle == nil {
                 await viewModel.refresh(for: crag)
             }
+        }
+        .sheet(isPresented: $showingAlertSheet) {
+            CragAlertSheet(crag: crag)
+                .environmentObject(notifications)
         }
     }
 
@@ -200,6 +221,61 @@ struct CragDetailView: View {
                         .stroke(Theme.Palette.divider, lineWidth: 1)
                 )
         }
+    }
+
+    private func sevenDaySection(days: [DailySummary]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("7-Day Forecast")
+                .font(Theme.Typography.title)
+                .foregroundStyle(Theme.Palette.textPrimary)
+            DailyForecastView(days: days)
+        }
+    }
+
+    private var alertRow: some View {
+        let existing = notifications.preference(for: crag)
+        return Button {
+            showingAlertSheet = true
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(existing != nil ? Theme.Palette.accentMuted : Theme.Palette.surfaceElevated)
+                        .frame(width: 40, height: 40)
+                    Image(systemName: existing != nil ? "bell.badge.fill" : "bell")
+                        .font(.system(size: 17))
+                        .foregroundStyle(existing != nil ? Theme.Palette.accent : Theme.Palette.textTertiary)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(existing != nil ? "Edit Alert" : "Set Alert")
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Palette.textPrimary)
+                    if let existing {
+                        Text("Score ≥ \(existing.threshold) · \(existing.isEnabled ? "On" : "Off")")
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Palette.textSecondary)
+                    } else {
+                        Text("Notify me when conditions are right")
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Palette.textSecondary)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            .padding(Theme.Metrics.cardPadding)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                    .fill(Theme.Palette.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                    .stroke(existing != nil ? Theme.Palette.accent.opacity(0.3) : Theme.Palette.divider, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var cragInfoCard: some View {

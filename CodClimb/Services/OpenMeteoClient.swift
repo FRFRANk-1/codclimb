@@ -20,7 +20,7 @@ struct OpenMeteoClient {
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,cloud_cover,weather_code"),
             URLQueryItem(name: "hourly", value: "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,cloud_cover,weather_code"),
             URLQueryItem(name: "past_days", value: "2"),
-            URLQueryItem(name: "forecast_days", value: "3"),
+            URLQueryItem(name: "forecast_days", value: "7"),
             URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
             URLQueryItem(name: "wind_speed_unit", value: "mph"),
             URLQueryItem(name: "precipitation_unit", value: "inch"),

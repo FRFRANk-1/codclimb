@@ -23,6 +23,15 @@
 		2B0000000000000000000014 /* FactorRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000014 /* FactorRow.swift */; };
 		2B0000000000000000000015 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000015 /* Assets.xcassets */; };
 		2B0000000000000000000016 /* crags.json in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000016 /* crags.json */; };
+		2B0000000000000000000020 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000020 /* FavoritesStore.swift */; };
+		2B0000000000000000000021 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000021 /* NotificationService.swift */; };
+		2B0000000000000000000022 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000022 /* FavoritesView.swift */; };
+		2B0000000000000000000023 /* NotificationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000023 /* NotificationsListView.swift */; };
+		2B0000000000000000000024 /* CragAlertSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000024 /* CragAlertSheet.swift */; };
+		2B0000000000000000000025 /* DailyForecastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000025 /* DailyForecastView.swift */; };
+		2B0000000000000000000026 /* ConditionReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000026 /* ConditionReport.swift */; };
+		2B0000000000000000000027 /* CommunityFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000027 /* CommunityFeedView.swift */; };
+		2B0000000000000000000028 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000028 /* RootTabView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +51,15 @@
 		1A0000000000000000000014 /* FactorRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactorRow.swift; sourceTree = "<group>"; };
 		1A0000000000000000000015 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A0000000000000000000016 /* crags.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = crags.json; sourceTree = "<group>"; };
+		1A0000000000000000000020 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
+		1A0000000000000000000021 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		1A0000000000000000000022 /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000023 /* NotificationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000024 /* CragAlertSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CragAlertSheet.swift; sourceTree = "<group>"; };
+		1A0000000000000000000025 /* DailyForecastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyForecastView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000026 /* ConditionReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditionReport.swift; sourceTree = "<group>"; };
+		1A0000000000000000000027 /* CommunityFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityFeedView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000028 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000099 /* CodClimb.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodClimb.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -92,6 +110,7 @@
 				1A0000000000000000000002 /* Crag.swift */,
 				1A0000000000000000000003 /* WeatherSnapshot.swift */,
 				1A0000000000000000000004 /* ClimbScore.swift */,
+				1A0000000000000000000026 /* ConditionReport.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -102,6 +121,8 @@
 				1A0000000000000000000005 /* OpenMeteoClient.swift */,
 				1A0000000000000000000006 /* ScoringService.swift */,
 				1A0000000000000000000007 /* CragRepository.swift */,
+				1A0000000000000000000020 /* FavoritesStore.swift */,
+				1A0000000000000000000021 /* NotificationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -111,6 +132,11 @@
 			children = (
 				1A0000000000000000000009 /* CragListView.swift */,
 				1A0000000000000000000010 /* CragDetailView.swift */,
+				1A0000000000000000000022 /* FavoritesView.swift */,
+				1A0000000000000000000023 /* NotificationsListView.swift */,
+				1A0000000000000000000024 /* CragAlertSheet.swift */,
+				1A0000000000000000000027 /* CommunityFeedView.swift */,
+				1A0000000000000000000028 /* RootTabView.swift */,
 				3C0000000000000000000023 /* Components */,
 			);
 			path = Views;
@@ -123,6 +149,7 @@
 				1A0000000000000000000012 /* StatTile.swift */,
 				1A0000000000000000000013 /* HourlyForecastView.swift */,
 				1A0000000000000000000014 /* FactorRow.swift */,
+				1A0000000000000000000025 /* DailyForecastView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -227,6 +254,15 @@
 				2B0000000000000000000012 /* StatTile.swift in Sources */,
 				2B0000000000000000000013 /* HourlyForecastView.swift in Sources */,
 				2B0000000000000000000014 /* FactorRow.swift in Sources */,
+				2B0000000000000000000020 /* FavoritesStore.swift in Sources */,
+				2B0000000000000000000021 /* NotificationService.swift in Sources */,
+				2B0000000000000000000022 /* FavoritesView.swift in Sources */,
+				2B0000000000000000000023 /* NotificationsListView.swift in Sources */,
+				2B0000000000000000000024 /* CragAlertSheet.swift in Sources */,
+				2B0000000000000000000025 /* DailyForecastView.swift in Sources */,
+				2B0000000000000000000026 /* ConditionReport.swift in Sources */,
+				2B0000000000000000000027 /* CommunityFeedView.swift in Sources */,
+				2B0000000000000000000028 /* RootTabView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
