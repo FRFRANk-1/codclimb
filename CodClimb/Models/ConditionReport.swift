@@ -105,15 +105,34 @@ struct ConditionReport: Identifiable, Codable {
 
 // MARK: - ConditionReportStore
 
+import FirebaseFirestore
+
 @MainActor
 final class ConditionReportStore: ObservableObject {
+
     @Published private(set) var reportsByID: [String: ConditionReport] = [:]
 
-    private let storageKey = "codclimb.conditionReports"
+    private let firebase = FirebaseService.shared
+    private var listener: ListenerRegistration?
 
-    init() { load() }
+    init() {
+        startListening()
+    }
 
-    // MARK: Accessors
+    deinit {
+        listener?.remove()
+    }
+
+    // MARK: - Real-time listener
+
+    private func startListening() {
+        listener = firebase.listenToReports { [weak self] reports in
+            guard let self else { return }
+            self.reportsByID = Dictionary(uniqueKeysWithValues: reports.map { ($0.id, $0) })
+        }
+    }
+
+    // MARK: - Accessors (unchanged public API)
 
     /// All reports for a specific crag, newest first
     func reports(for cragID: String) -> [ConditionReport] {
@@ -132,37 +151,46 @@ final class ConditionReportStore: ObservableObject {
             .map { $0 }
     }
 
-    // MARK: Mutations
+    // MARK: - Mutations
 
     func add(_ report: ConditionReport) {
+        // Optimistic local insert so UI updates instantly
         reportsByID[report.id] = report
-        save()
-    }
-
-    func thumbsUp(report: ConditionReport) {
-        guard var r = reportsByID[report.id] else { return }
-        r.thumbsUp += 1
-        reportsByID[report.id] = r
-        save()
-    }
-
-    func remove(id: String) {
-        reportsByID.removeValue(forKey: id)
-        save()
-    }
-
-    // MARK: Persistence
-
-    private func save() {
-        if let data = try? JSONEncoder().encode(reportsByID) {
-            UserDefaults.standard.set(data, forKey: storageKey)
+        Task {
+            do {
+                try await firebase.addReport(report)
+            } catch {
+                // Roll back on failure
+                reportsByID.removeValue(forKey: report.id)
+                print("[ConditionReportStore] Add failed: \(error)")
+            }
         }
     }
 
-    private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([String: ConditionReport].self, from: data)
-        else { return }
-        reportsByID = decoded
+    func thumbsUp(report: ConditionReport) {
+        // Optimistic update
+        guard var r = reportsByID[report.id] else { return }
+        r.thumbsUp += 1
+        reportsByID[report.id] = r
+        Task {
+            do {
+                try await firebase.thumbsUp(reportID: report.id)
+            } catch {
+                print("[ConditionReportStore] ThumbsUp failed: \(error)")
+            }
+        }
+    }
+
+    func remove(id: String) {
+        let backup = reportsByID[id]
+        reportsByID.removeValue(forKey: id)
+        Task {
+            do {
+                try await firebase.removeReport(id: id)
+            } catch {
+                if let backup { reportsByID[id] = backup }
+                print("[ConditionReportStore] Remove failed: \(error)")
+            }
+        }
     }
 }

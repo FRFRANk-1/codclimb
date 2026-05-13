@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HourlyForecastView: View {
     let hours: [WeatherSnapshot]
+    @AppStorage("codclimb.useMetric") private var useMetric: Bool = false
 
     private var formatter: DateFormatter {
         let f = DateFormatter()
@@ -23,11 +24,11 @@ struct HourlyForecastView: View {
                             .font(.system(size: 18))
                             .foregroundStyle(Theme.Palette.textSecondary)
                             .frame(height: 22)
-                        Text("\(Int(hour.temperatureF.rounded()))°")
+                        Text(UnitFormatter.tempShort(hour.temperatureF))
                             .font(Theme.Typography.headline)
                             .foregroundStyle(Theme.Palette.textPrimary)
                         if hour.precipitationIn >= 0.01 {
-                            Text(String(format: "%.2f\"", hour.precipitationIn))
+                            Text(UnitFormatter.precip(hour.precipitationIn))
                                 .font(.system(size: 10, weight: .medium))
                                 .foregroundStyle(Theme.Palette.accent)
                         } else {

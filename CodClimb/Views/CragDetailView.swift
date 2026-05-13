@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - CragDetailView
+
 @MainActor
 final class CragDetailViewModel: ObservableObject {
     @Published private(set) var bundle: WeatherBundle?
@@ -44,6 +46,7 @@ struct CragDetailView: View {
     @EnvironmentObject private var notifications: NotificationService
     @EnvironmentObject private var reportStore: ConditionReportStore
     @State private var showingAlertSheet = false
+    @AppStorage("codclimb.useMetric") private var useMetric: Bool = false
 
     var body: some View {
         ScrollView {
@@ -140,14 +143,17 @@ struct CragDetailView: View {
         let columns = [GridItem(.flexible()), GridItem(.flexible())]
         return LazyVGrid(columns: columns, spacing: 10) {
             StatTile(icon: "thermometer.medium", label: "Temperature",
-                     value: "\(Int(snapshot.temperatureF.rounded()))°", trailing: "F")
+                     value: UnitFormatter.tempShort(snapshot.temperatureF),
+                     trailing: UnitFormatter.tempUnit)
             StatTile(icon: "humidity.fill", label: "Humidity",
                      value: "\(Int(snapshot.humidityPct.rounded()))", trailing: "%")
             StatTile(icon: "wind", label: "Wind",
-                     value: "\(Int(snapshot.windMph.rounded()))", trailing: "mph")
+                     value: UnitFormatter.windShort(snapshot.windMph),
+                     trailing: UnitFormatter.windUnit)
             StatTile(icon: "cloud.fill", label: "Cloud cover",
                      value: "\(Int(snapshot.cloudCoverPct.rounded()))", trailing: "%")
         }
+        .id(useMetric) // force redraw when units toggle
     }
 
     private func bestWindowCard(_ snap: WeatherSnapshot) -> some View {
@@ -165,7 +171,7 @@ struct CragDetailView: View {
                 Text(f.string(from: snap.time))
                     .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Palette.textPrimary)
-                Text("\(Int(snap.temperatureF.rounded()))°F · \(snap.conditionLabel) · \(Int(snap.windMph.rounded())) mph wind")
+                Text("\(UnitFormatter.temperature(snap.temperatureF)) · \(snap.conditionLabel) · \(UnitFormatter.wind(snap.windMph))")
                     .font(Theme.Typography.callout)
                     .foregroundStyle(Theme.Palette.textSecondary)
             }

@@ -30,6 +30,7 @@ struct DailyForecastView: View {
 
 private struct DayRow: View {
     let day: DailySummary
+    @AppStorage("codclimb.useMetric") private var useMetric: Bool = false
 
     private var dayLabel: String {
         if day.isToday    { return "Today" }
@@ -66,11 +67,11 @@ private struct DayRow: View {
 
             // Temp range
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(Int(day.highF.rounded()))° / \(Int(day.lowF.rounded()))°")
+                Text("\(UnitFormatter.tempShort(day.highF)) / \(UnitFormatter.tempShort(day.lowF))")
                     .font(Theme.Typography.callout)
                     .foregroundStyle(Theme.Palette.textPrimary)
                 if day.totalPrecipIn >= 0.01 {
-                    Text(String(format: "%.2f\" precip", day.totalPrecipIn))
+                    Text("\(UnitFormatter.precip(day.totalPrecipIn)) precip")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.Palette.textTertiary)
                 }
