@@ -11,6 +11,7 @@ struct ConditionReport: Identifiable, Codable {
     var crowdLevel: CrowdLevel
     var bodyText: String
     var thumbsUp: Int
+    var photoURL: String?          // Firebase Storage download URL, nil if no photo
 
     init(
         id: String = UUID().uuidString,
@@ -20,7 +21,8 @@ struct ConditionReport: Identifiable, Codable {
         rockCondition: RockCondition,
         crowdLevel: CrowdLevel,
         bodyText: String = "",
-        thumbsUp: Int = 0
+        thumbsUp: Int = 0,
+        photoURL: String? = nil
     ) {
         self.id = id
         self.cragID = cragID
@@ -30,6 +32,7 @@ struct ConditionReport: Identifiable, Codable {
         self.crowdLevel = crowdLevel
         self.bodyText = bodyText
         self.thumbsUp = thumbsUp
+        self.photoURL = photoURL
     }
 
     // MARK: - Relative time label

@@ -2,6 +2,7 @@
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseStorage
 
 // MARK: - FirebaseService
 
@@ -91,6 +92,21 @@ final class FirebaseService: ObservableObject {
         try await db.collection("conditionReports")
             .document(id)
             .delete()
+    }
+
+    // MARK: - Photo Storage
+
+    /// Upload JPEG data to Firebase Storage and return the public download URL string.
+    /// Path: reports/{reportID}.jpg
+    func uploadPhoto(_ imageData: Data, reportID: String) async throws -> String {
+        let ref = Storage.storage()
+            .reference()
+            .child("reports/\(reportID).jpg")
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        _ = try await ref.putDataAsync(imageData, metadata: metadata)
+        let url = try await ref.downloadURL()
+        return url.absoluteString
     }
 
     // MARK: - Serialisation helpers

@@ -1,7 +1,6 @@
 // CodClimb/Views/CommunityFeedView.swift
-// Drop into CodClimb/Views/ alongside CragListView.swift
-
 import SwiftUI
+import PhotosUI
 
 // MARK: - Community Feed (global recent reports)
 
@@ -273,6 +272,30 @@ struct ReportCard: View {
                     .lineLimit(6)
             }
 
+            // Photo (if attached)
+            if let urlStr = report.photoURL, let url = URL(string: urlStr) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    case .failure:
+                        EmptyView()
+                    case .empty:
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Theme.Palette.surfaceElevated)
+                            .frame(height: 200)
+                            .overlay(ProgressView())
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+
             // Footer: crowd + thumbs up
             HStack(spacing: 14) {
                 // Crowd level
@@ -409,11 +432,18 @@ struct SubmitReportView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedCrag: Crag?
+    @AppStorage("codclimb.username") private var savedUsername: String = ""
     @State private var authorName: String = ""
     @State private var rockCondition: ConditionReport.RockCondition = .good
     @State private var crowdLevel: ConditionReport.CrowdLevel = .moderate
     @State private var bodyText: String = ""
     @State private var showingValidationAlert = false
+
+    // Photo picker
+    @State private var photoItem: PhotosPickerItem? = nil
+    @State private var photoData: Data? = nil
+    @State private var photoPreview: Image? = nil
+    @State private var isUploading = false
 
     private var isValid: Bool {
         selectedCrag != nil && !authorName.trimmingCharacters(in: .whitespaces).isEmpty
@@ -476,23 +506,86 @@ struct SubmitReportView: View {
                     )
                     .lineLimit(5...10)
                 }
+
+                // Photo
+                Section("Photo (optional)") {
+                    PhotosPicker(
+                        selection: $photoItem,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        HStack(spacing: 12) {
+                            if let preview = photoPreview {
+                                preview
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 64, height: 64)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            } else {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Theme.Palette.surfaceElevated)
+                                    .frame(width: 64, height: 64)
+                                    .overlay(
+                                        Image(systemName: "camera.fill")
+                                            .foregroundStyle(Theme.Palette.textTertiary)
+                                    )
+                            }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(photoPreview == nil ? "Add a photo" : "Photo selected")
+                                    .font(Theme.Typography.callout)
+                                    .foregroundStyle(Theme.Palette.textPrimary)
+                                Text("Show current conditions at the crag")
+                                    .font(Theme.Typography.caption)
+                                    .foregroundStyle(Theme.Palette.textTertiary)
+                            }
+                        }
+                    }
+                    .onChange(of: photoItem) { _, newItem in
+                        Task {
+                            guard let item = newItem,
+                                  let data = try? await item.loadTransferable(type: Data.self),
+                                  let uiImage = UIImage(data: data)
+                            else { return }
+                            photoData = data
+                            photoPreview = Image(uiImage: uiImage)
+                        }
+                    }
+                    if photoPreview != nil {
+                        Button(role: .destructive) {
+                            photoItem = nil
+                            photoData = nil
+                            photoPreview = nil
+                        } label: {
+                            Label("Remove photo", systemImage: "trash")
+                                .font(Theme.Typography.caption)
+                        }
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Theme.Palette.background.ignoresSafeArea())
             .navigationTitle("Post Report")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                // Pre-fill author from saved username
+                if authorName.isEmpty { authorName = savedUsername }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                         .tint(Theme.Palette.textSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Post") {
-                        guard isValid else { showingValidationAlert = true; return }
-                        submit()
+                    if isUploading {
+                        ProgressView().tint(Theme.Palette.accent)
+                    } else {
+                        Button("Post") {
+                            guard isValid else { showingValidationAlert = true; return }
+                            Task { await submit() }
+                        }
+                        .fontWeight(.semibold)
+                        .tint(Theme.Palette.accent)
                     }
-                    .fontWeight(.semibold)
-                    .tint(Theme.Palette.accent)
                 }
             }
             .alert("Missing info", isPresented: $showingValidationAlert) {
@@ -503,17 +596,49 @@ struct SubmitReportView: View {
         }
     }
 
-    private func submit() {
+    private func submit() async {
         guard let crag = selectedCrag ?? preselectedCrag else { return }
+        isUploading = true
+        defer { isUploading = false }
+
+        let reportID = UUID().uuidString
+        var uploadedURL: String? = nil
+
+        // Upload photo if one was selected
+        if let data = photoData {
+            // Compress to max 1MB JPEG before uploading
+            let compressed = compressImage(data, maxBytes: 1_000_000)
+            uploadedURL = try? await FirebaseService.shared.uploadPhoto(
+                compressed, reportID: reportID
+            )
+        }
+
         let report = ConditionReport(
+            id: reportID,
             cragID: crag.id,
             author: authorName.trimmingCharacters(in: .whitespaces),
             rockCondition: rockCondition,
             crowdLevel: crowdLevel,
-            bodyText: bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
+            bodyText: bodyText.trimmingCharacters(in: .whitespacesAndNewlines),
+            photoURL: uploadedURL
         )
         reportStore.add(report)
+
+        // Save author name for next time
+        savedUsername = authorName.trimmingCharacters(in: .whitespaces)
         dismiss()
+    }
+
+    /// Compress image data to stay under maxBytes while preserving aspect ratio.
+    private func compressImage(_ data: Data, maxBytes: Int) -> Data {
+        guard let image = UIImage(data: data) else { return data }
+        var quality: CGFloat = 0.8
+        var result = image.jpegData(compressionQuality: quality) ?? data
+        while result.count > maxBytes && quality > 0.1 {
+            quality -= 0.1
+            result = image.jpegData(compressionQuality: quality) ?? data
+        }
+        return result
     }
 
     private func conditionIcon(_ c: ConditionReport.RockCondition) -> String {
