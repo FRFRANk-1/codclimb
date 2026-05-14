@@ -60,6 +60,68 @@ struct WeatherBundle {
         return current.time.timeIntervalSince(lastWet.time) / 3600.0
     }
 
+    // MARK: - Rain forecast
+
+    private static let wetCodes: Set<Int> = [
+        51, 53, 55, 56, 57,          // drizzle / freezing drizzle
+        61, 63, 65, 66, 67,          // rain / freezing rain
+        80, 81, 82,                  // showers
+        95, 96, 99                   // thunderstorms
+    ]
+
+    /// Hours until the next rain event within the next 24 hours, or nil if none forecast.
+    var hoursUntilRain: Double? {
+        let next24 = hourly.filter { $0.time > current.time }.prefix(24)
+        guard let first = next24.first(where: {
+            $0.precipitationIn >= 0.01 || Self.wetCodes.contains($0.weatherCode)
+        }) else { return nil }
+        return max(0, first.time.timeIntervalSince(current.time) / 3600.0)
+    }
+
+    /// Human-readable forecast rain warning, or nil if skies are clear for 24h.
+    var rainWarning: RainWarning? {
+        guard let h = hoursUntilRain else { return nil }
+        switch h {
+        case 0..<1:   return .init(urgency: .critical, hoursAway: h)
+        case 1..<3:   return .init(urgency: .high,     hoursAway: h)
+        case 3..<8:   return .init(urgency: .moderate, hoursAway: h)
+        default:      return .init(urgency: .low,      hoursAway: h)
+        }
+    }
+
+    struct RainWarning {
+        enum Urgency { case critical, high, moderate, low }
+        let urgency: Urgency
+        let hoursAway: Double
+
+        var title: String {
+            switch urgency {
+            case .critical: return "Rain arriving now"
+            case .high:     return "Rain in ~\(Int(hoursAway.rounded()))h"
+            case .moderate: return "Rain expected in \(Int(hoursAway.rounded()))h"
+            case .low:      return "Rain later today (~\(Int(hoursAway.rounded()))h)"
+            }
+        }
+
+        var advice: String {
+            switch urgency {
+            case .critical: return "Rock will be wet soon. Descend or move to a sheltered sector."
+            case .high:     return "Start wrapping up. Wet rock arriving in under 3 hours."
+            case .moderate: return "Plan your day around it — get your burns in now."
+            case .low:      return "Rain tonight. Conditions good now; watch the sky."
+            }
+        }
+
+        var iconName: String {
+            switch urgency {
+            case .critical: return "cloud.bolt.rain.fill"
+            case .high:     return "cloud.heavyrain.fill"
+            case .moderate: return "cloud.rain.fill"
+            case .low:      return "cloud.drizzle.fill"
+            }
+        }
+    }
+
     /// Groups future hourly snapshots by calendar day, returning up to 7 days.
     func dailySummaries(scorer: ScoringService) -> [DailySummary] {
         let cal = Calendar.current

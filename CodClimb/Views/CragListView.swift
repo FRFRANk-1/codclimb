@@ -4,18 +4,21 @@ import SwiftUI
 final class CragListViewModel: ObservableObject {
     @Published private(set) var crags: [Crag] = []
     @Published private(set) var snapshots: [String: CragSnapshot] = [:]
-    @Published private(set) var isLoading: Bool = false
+    @Published private(set) var isLoading: Bool = false   // true only during pull-to-refresh
     @Published private(set) var loadError: String?
 
     private let client = OpenMeteoClient()
     private let scorer = ScoringService()
+
+    /// Crag IDs whose fetch is currently in-flight (prevents duplicate concurrent requests).
+    private var inFlight: Set<String> = []
 
     struct CragSnapshot {
         let bundle: WeatherBundle
         let score: ClimbScore
     }
 
-    /// Crags sorted by score descending (unscored crags go to the end)
+    /// Crags sorted by score descending (unscored crags go to the end).
     var sortedCrags: [Crag] {
         crags.sorted { a, b in
             let sa = snapshots[a.id]?.score.value ?? -1
@@ -24,40 +27,75 @@ final class CragListViewModel: ObservableObject {
         }
     }
 
-    /// All unique state/region tokens derived from crag regions
+    /// True while this crag's weather request is in-flight.
+    func isLoadingCrag(_ id: String) -> Bool {
+        inFlight.contains(id)
+    }
+
+    /// All unique state/region tokens derived from crag regions.
     var regions: [String] {
         let states = crags.compactMap { $0.stateAbbreviation }
         return Array(Set(states)).sorted()
     }
 
+    // MARK: - Loading
+
+    /// Initial load: reads the JSON crag list only. Weather is fetched lazily per-card.
     func load() async {
+        guard crags.isEmpty else { return }
         do {
             crags = try CragRepository.loadAll()
         } catch {
             loadError = "Couldn't load crag list."
-            return
         }
-        await refreshAll()
     }
 
+    /// On-demand fetch for a single crag — called when its card scrolls into view.
+    /// Skips if already loaded or in-flight. Retries automatically on next appear if it failed.
+    func fetchIfNeeded(for crag: Crag) async {
+        guard snapshots[crag.id] == nil,
+              !inFlight.contains(crag.id) else { return }
+
+        inFlight.insert(crag.id)
+        defer { inFlight.remove(crag.id) }
+
+        do {
+            let bundle = try await client.fetch(latitude: crag.latitude, longitude: crag.longitude)
+            snapshots[crag.id] = CragSnapshot(bundle: bundle, score: scorer.score(for: bundle))
+        } catch {
+            // Don't mark as permanently failed — next time the card appears it will retry
+            print("[CragListViewModel] \(crag.name): \(error.localizedDescription)")
+        }
+    }
+
+    /// Pull-to-refresh: clears cache and re-fetches all crags with a concurrency cap.
     func refreshAll() async {
         isLoading = true
         defer { isLoading = false }
+
+        let maxConcurrent = 8
+        var iterator = crags.makeIterator()
+
         await withTaskGroup(of: (String, CragSnapshot?).self) { group in
-            for crag in crags {
+            var active = 0
+            while active < maxConcurrent, let crag = iterator.next() {
+                let c = crag
                 group.addTask { [client, scorer] in
-                    do {
-                        let bundle = try await client.fetch(latitude: crag.latitude, longitude: crag.longitude)
-                        let score = scorer.score(for: bundle)
-                        return (crag.id, CragSnapshot(bundle: bundle, score: score))
-                    } catch {
-                        return (crag.id, nil)
-                    }
+                    guard let bundle = try? await client.fetch(latitude: c.latitude, longitude: c.longitude)
+                    else { return (c.id, nil) }
+                    return (c.id, CragSnapshot(bundle: bundle, score: scorer.score(for: bundle)))
                 }
+                active += 1
             }
             for await (id, snap) in group {
-                if let snap {
-                    snapshots[id] = snap
+                if let snap { snapshots[id] = snap }
+                if let crag = iterator.next() {
+                    let c = crag
+                    group.addTask { [client, scorer] in
+                        guard let bundle = try? await client.fetch(latitude: c.latitude, longitude: c.longitude)
+                        else { return (c.id, nil) }
+                        return (c.id, CragSnapshot(bundle: bundle, score: scorer.score(for: bundle)))
+                    }
                 }
             }
         }
@@ -272,14 +310,33 @@ private struct AreasSection: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 32)
             }
-            ForEach(crags) { crag in
-                NavigationLink {
-                    CragDetailView(crag: crag, preloaded: viewModel.snapshots[crag.id])
-                } label: {
-                    CragCard(crag: crag, snapshot: viewModel.snapshots[crag.id], isLoading: viewModel.isLoading && viewModel.snapshots[crag.id] == nil)
+            LazyVStack(spacing: 12) {
+                ForEach(crags) { crag in
+                    CragCardRow(crag: crag, viewModel: viewModel)
                 }
-                .buttonStyle(.plain)
             }
+        }
+    }
+}
+
+/// Wraps a CragCard and triggers its weather fetch the moment it scrolls into view.
+private struct CragCardRow: View {
+    let crag: Crag
+    @ObservedObject var viewModel: CragListViewModel
+
+    var body: some View {
+        NavigationLink {
+            CragDetailView(crag: crag, preloaded: viewModel.snapshots[crag.id])
+        } label: {
+            CragCard(
+                crag: crag,
+                snapshot: viewModel.snapshots[crag.id],
+                isLoading: viewModel.isLoadingCrag(crag.id)
+            )
+        }
+        .buttonStyle(.plain)
+        .task(id: crag.id) {
+            await viewModel.fetchIfNeeded(for: crag)
         }
     }
 }

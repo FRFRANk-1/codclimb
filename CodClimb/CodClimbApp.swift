@@ -6,8 +6,10 @@ struct CodClimbApp: App {
     @StateObject private var favorites      = FavoritesStore()
     @StateObject private var notifications  = NotificationService()
     @StateObject private var reportStore    = ConditionReportStore()
+    @StateObject private var profileStore   = UserProfileStore()
 
     @State private var showSplash = true
+    @AppStorage("codclimb.hasSeenOnboarding") private var hasSeenOnboarding = false
 
     init() {
         FirebaseApp.configure()
@@ -20,13 +22,23 @@ struct CodClimbApp: App {
                     .environmentObject(favorites)
                     .environmentObject(notifications)
                     .environmentObject(reportStore)
+                    .environmentObject(profileStore)
+                    .task { await WeatherCacheClient.shared.prefetch() }
 
                 if showSplash {
                     SplashView(isShowing: $showSplash)
                         .transition(.opacity)
+                        .zIndex(2)
+                }
+
+                if !hasSeenOnboarding && !showSplash {
+                    OnboardingView(hasSeenOnboarding: $hasSeenOnboarding)
+                        .transition(.opacity)
                         .zIndex(1)
                 }
             }
+            .animation(.easeInOut(duration: 0.4), value: showSplash)
+            .animation(.easeInOut(duration: 0.4), value: hasSeenOnboarding)
         }
     }
 }
@@ -36,7 +48,12 @@ struct RootTabView: View {
         TabView {
             CragListView()
                 .tabItem {
-                    Label("Explore", systemImage: "map")
+                    Label("Explore", systemImage: "list.bullet")
+                }
+
+            CragMapView()
+                .tabItem {
+                    Label("Map", systemImage: "map")
                 }
 
             FavoritesView()
@@ -49,14 +66,9 @@ struct RootTabView: View {
                     Label("Community", systemImage: "person.2.wave.2")
                 }
 
-            NotificationsListView()
+            ProfileView()
                 .tabItem {
-                    Label("Alerts", systemImage: "bell")
-                }
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
+                    Label("Profile", systemImage: "person.crop.circle")
                 }
         }
         .tint(Theme.Palette.accent)

@@ -4,6 +4,7 @@ struct ScoreBadgeView: View {
     let score: ClimbScore?
     let isLoading: Bool
     var size: Size = .medium
+    var textColor: Color = Theme.Palette.textPrimary
 
     enum Size {
         case small, medium, large
@@ -34,7 +35,7 @@ struct ScoreBadgeView: View {
                     .rotationEffect(.degrees(-90))
                 Text("\(score.value)")
                     .font(size.font)
-                    .foregroundStyle(Theme.Palette.textPrimary)
+                    .foregroundStyle(textColor)
             } else if isLoading {
                 ProgressView()
             } else {

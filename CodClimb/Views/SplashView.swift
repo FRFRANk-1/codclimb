@@ -196,12 +196,12 @@ struct SplashView: View {
                  with:.color(Color(red:0.478,green:0.180,blue:0.031)))
         ctx.fill(poly([(0,540),(55,432),(105,468),(148,412),(198,460),(248,408),(298,452),(346,402),(396,448),(446,410),(500,442),(530,424),(530,560),(0,560)]),
                  with:.color(Color(red:0.557,green:0.220,blue:0.063)))
-        // Main mountain peak
-        ctx.fill(poly([(118,560),(188,260),(258,560)]), with:.color(Color(red:0.353,green:0.118,blue:0.020)))
-        ctx.fill(poly([(188,260),(258,560),(228,560)]), with:.color(Color(red:0.239,green:0.071,blue:0.012).opacity(0.52)))
+        // Main mountain peak — raised to y:195 so spike reaches near the sun
+        ctx.fill(poly([(118,560),(188,195),(258,560)]), with:.color(Color(red:0.353,green:0.118,blue:0.020)))
+        ctx.fill(poly([(188,195),(258,560),(228,560)]), with:.color(Color(red:0.239,green:0.071,blue:0.012).opacity(0.52)))
         // Crack
-        var crack = Path(); crack.move(to:pt(188,278))
-        for cp in [(184,310),(190,350),(185,400),(189,450),(186,500)] as [(CGFloat,CGFloat)] {
+        var crack = Path(); crack.move(to:pt(188,213))
+        for cp in [(184,250),(190,300),(185,370),(189,430),(186,490)] as [(CGFloat,CGFloat)] {
             crack.addLine(to: pt(cp.0,cp.1))
         }
         ctx.stroke(crack, with:.color(Color(red:0.165,green:0.051,blue:0.008).opacity(0.45)),
@@ -242,14 +242,14 @@ struct SplashView: View {
         ctx.fill(Path(CGRect(x:0,y:y(540),width:W,height:H-y(540))),
                  with:.color(Color(red:0.051,green:0.122,blue:0.051)))
 
-        // Rope anchor dot
-        ctx.fill(Path(ellipseIn: CGRect(x:x(196)-x(4),y:y(272)-x(4),width:x(8),height:x(8))),
+        // Rope anchor dot — sits just below the mountain peak
+        ctx.fill(Path(ellipseIn: CGRect(x:x(196)-x(4),y:y(209)-x(4),width:x(8),height:x(8))),
                  with:.color(Color(red:0.816,green:0.784,blue:0.690).opacity(0.9)))
-        // Rope curve
+        // Rope curve — from anchor near peak down to climber's harness
         var rope = Path()
-        rope.move(to:pt(196,272))
+        rope.move(to:pt(196,209))
         rope.addCurve(to:pt(183,400),
-                      control1:pt(194,300), control2:pt(185,375))
+                      control1:pt(193,270), control2:pt(185,365))
         ctx.stroke(rope, with:.color(Color(red:0.910,green:0.847,blue:0.627).opacity(0.9)),
                    style:StrokeStyle(lineWidth:x(2.5), lineCap:.round))
 
@@ -341,19 +341,24 @@ struct SplashView: View {
         ctx.fill(Path(ellipseIn: CGRect(x:x(179),y:y(405),width:x(8),height:y(8))),
                  with:.color(Color(red:0.847,green:0.800,blue:0.565)))
 
-        // Rope below harness
-        var rt = Path(); rt.move(to:pt(183,413)); rt.addLine(to:pt(181,440))
-        ctx.stroke(rt, with:.color(Color(red:0.847,green:0.800,blue:0.565).opacity(0.7)),
-                   style:StrokeStyle(lineWidth:x(2), lineCap:.round))
+        // Eye (single, side-profile facing right-upward)
+        ctx.fill(Path(ellipseIn: CGRect(x:x(182),y:y(385),width:x(3),height:y(3))),
+                 with:.color(Color(red:0.18,green:0.12,blue:0.08).opacity(0.9)))
+
+        // Smile
+        var smile = Path()
+        smile.addArc(center:pt(182, 395), radius:x(3),
+                     startAngle:.degrees(15), endAngle:.degrees(165), clockwise:false)
+        ctx.stroke(smile, with:.color(Color(red:0.18,green:0.12,blue:0.08).opacity(0.8)),
+                   style:StrokeStyle(lineWidth:x(1.4), lineCap:.round))
     }
 
-    // MARK: - Improved hand shape (palm + 3 finger bumps)
+    // MARK: - Hand shape (simple rotated palm — clean, no finger bumps)
     private func drawHand(ctx: GraphicsContext, cx: CGFloat, cy: CGFloat,
                           angleDeg: Double, x: (CGFloat)->CGFloat, y: (CGFloat)->CGFloat,
                           color: Color) {
         let a = Angle.degrees(angleDeg)
-        let palmW = x(11), palmH = x(8)
-        // Palm oval
+        let palmW = x(10), palmH = x(7)
         var palm = Path()
         palm.addEllipse(in: CGRect(x:cx-palmW/2, y:cy-palmH/2, width:palmW, height:palmH))
         var pc = ctx
@@ -361,17 +366,6 @@ struct SplashView: View {
         pc.rotate(by: a)
         pc.translateBy(x: -cx, y: -cy)
         pc.fill(palm, with:.color(color))
-
-        // 3 finger bumps on the "grip" side
-        let fr = x(4.5)
-        for i in 0..<3 {
-            let fa = Angle.degrees(angleDeg - 30 + Double(i) * 28)
-            let fx = cx + cos(fa.radians) * x(9)
-            let fy = cy + sin(fa.radians) * x(9)
-            var finger = Path()
-            finger.addEllipse(in: CGRect(x:fx-fr/2, y:fy-fr/2, width:fr, height:fr))
-            ctx.fill(finger, with:.color(color))
-        }
     }
 
     // MARK: - Improved shoe shape (elongated toe + sole)
