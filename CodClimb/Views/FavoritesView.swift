@@ -17,11 +17,8 @@ struct FavoritesView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: Theme.Metrics.sectionSpacing) {
-                            // Best-conditions banner
-                            if let best = favoriteCrags.first,
-                               let snap = viewModel.snapshots[best.id] {
-                                BestFavoriteCard(crag: best, snapshot: snap)
-                            }
+                            // Best Day This Week planner
+                            BestDayPlannerCard(crags: favoriteCrags, snapshots: viewModel.snapshots)
 
                             // Saved crags list
                             VStack(alignment: .leading, spacing: 12) {
@@ -68,45 +65,165 @@ struct FavoritesView: View {
     }
 }
 
-// MARK: - Best Favorite Banner
+// MARK: - Best Day This Week Planner
 
-private struct BestFavoriteCard: View {
-    let crag: Crag
-    let snapshot: CragListViewModel.CragSnapshot
+private struct BestDayPlannerCard: View {
+    let crags: [Crag]
+    let snapshots: [String: CragListViewModel.CragSnapshot]
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("BEST CONDITIONS NOW")
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Palette.textTertiary)
-                .tracking(0.8)
+    private let scorer = ScoringService()
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(crag.name)
-                        .font(Theme.Typography.title)
-                        .foregroundStyle(Theme.Palette.textPrimary)
-                    Text(crag.region)
-                        .font(Theme.Typography.callout)
-                        .foregroundStyle(Theme.Palette.textSecondary)
-                    Text(snapshot.score.summary)
-                        .font(Theme.Typography.callout)
-                        .foregroundStyle(Theme.Palette.textSecondary)
-                        .padding(.top, 2)
+    // Find the single best (crag, day) combo in the next 7 days, weekend-weighted
+    private struct Recommendation {
+        let crag: Crag
+        let day: DailySummary
+        let isWeekend: Bool
+    }
+
+    private var recommendation: Recommendation? {
+        let cal = Calendar.current
+        var best: (rec: Recommendation, score: Int)? = nil
+
+        for crag in crags {
+            guard let snap = snapshots[crag.id] else { continue }
+            let days = snap.bundle.dailySummaries(scorer: scorer)
+            for day in days {
+                let weekday = cal.component(.weekday, from: day.date)
+                let isWeekend = weekday == 1 || weekday == 7 // Sun=1, Sat=7
+                // Boost weekend score slightly so equal conditions favour the weekend
+                let adjusted = day.score.value + (isWeekend ? 3 : 0)
+                if best == nil || adjusted > best!.score {
+                    best = (Recommendation(crag: crag, day: day, isWeekend: isWeekend), adjusted)
                 }
-                Spacer()
-                ScoreBadgeView(score: snapshot.score, isLoading: false, size: .large)
             }
         }
+        return best?.rec
+    }
+
+    var body: some View {
+        Group {
+            if let rec = recommendation {
+                plannerCard(rec)
+            } else {
+                loadingCard
+            }
+        }
+    }
+
+    private func plannerCard(_ rec: Recommendation) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("BEST DAY THIS WEEK")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                        .tracking(0.8)
+                    Text(rec.isWeekend ? "Weekend pick 🎉" : "Best window")
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Palette.textPrimary)
+                }
+                Spacer()
+                ScoreBadgeView(score: rec.day.score, isLoading: false, size: .large)
+            }
+
+            Divider()
+
+            // Recommendation detail
+            HStack(spacing: 14) {
+                // Day badge
+                VStack(spacing: 4) {
+                    Text(dayAbbrev(rec.day.date))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(rec.isWeekend ? Theme.Palette.accent : Theme.Palette.textSecondary)
+                    Text(dayNum(rec.day.date))
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundStyle(Theme.Palette.textPrimary)
+                    Text(monthAbbrev(rec.day.date))
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                }
+                .frame(width: 52)
+                .padding(.vertical, 8)
+                .background(rec.isWeekend ? Theme.Palette.accentMuted : Theme.Palette.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10)
+                    .stroke(rec.isWeekend ? Theme.Palette.accent.opacity(0.3) : Theme.Palette.divider, lineWidth: 1))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(rec.crag.name)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(Theme.Palette.textPrimary)
+                        .lineLimit(1)
+                    Text(rec.crag.region)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.textSecondary)
+
+                    // Mini weather row
+                    HStack(spacing: 10) {
+                        Label("\(Int(rec.day.highF.rounded()))°F high", systemImage: "thermometer.medium")
+                        Label(rec.day.totalPrecipIn < 0.01 ? "Dry" : "\(String(format: "%.2f", rec.day.totalPrecipIn))\" rain",
+                              systemImage: rec.day.totalPrecipIn < 0.01 ? "sun.max" : "cloud.rain")
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+                    .labelStyle(.titleAndIcon)
+                }
+            }
+
+            // Verdict
+            HStack(spacing: 6) {
+                Image(systemName: verdictIcon(rec.day.score))
+                    .font(.system(size: 12, weight: .semibold))
+                Text(rec.day.score.verdict.rawValue)
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(rec.day.score.verdict.color)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(rec.day.score.verdict.color.opacity(0.1))
+            .clipShape(Capsule())
+        }
         .padding(Theme.Metrics.cardPadding)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
-                .fill(Theme.Palette.accentMuted)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
-                .stroke(Theme.Palette.accent.opacity(0.25), lineWidth: 1)
-        )
+        .background(Theme.Palette.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+            .stroke(Theme.Palette.accent.opacity(0.2), lineWidth: 1))
+    }
+
+    private var loadingCard: some View {
+        HStack(spacing: 14) {
+            ProgressView().controlSize(.small)
+            Text("Loading forecast…")
+                .font(Theme.Typography.callout)
+                .foregroundStyle(Theme.Palette.textTertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Metrics.cardPadding)
+        .background(Theme.Palette.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+            .stroke(Theme.Palette.divider, lineWidth: 1))
+    }
+
+    private func dayAbbrev(_ d: Date) -> String {
+        if Calendar.current.isDateInToday(d) { return "TODAY" }
+        if Calendar.current.isDateInTomorrow(d) { return "TMRW" }
+        let f = DateFormatter(); f.dateFormat = "EEE"; return f.string(from: d).uppercased()
+    }
+    private func dayNum(_ d: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "d"; return f.string(from: d)
+    }
+    private func monthAbbrev(_ d: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "MMM"; return f.string(from: d)
+    }
+    private func verdictIcon(_ score: ClimbScore) -> String {
+        switch score.value {
+        case 80...: return "checkmark.circle.fill"
+        case 60...: return "hand.thumbsup.fill"
+        case 40...: return "exclamationmark.circle"
+        default:    return "xmark.circle"
+        }
     }
 }
 

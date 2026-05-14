@@ -34,9 +34,8 @@ final class UnsplashService: ObservableObject {
     private let accessKey = "h6yVTihRpcIHt1IAIGyTCTxj72icHZt0RGUI2jyJUJ8"
     // ────────────────────────────────────────────────────────────────────
 
-    /// Set to true once Unsplash production access is approved (post-launch).
-    /// Keeping this false for now uses local photos with zero API calls.
-    var isConfigured: Bool { false }
+    /// Unsplash API key is set — enabled.
+    var isConfigured: Bool { !accessKey.isEmpty && accessKey != "YOUR_UNSPLASH_ACCESS_KEY" }
 
     /// In-memory cache: cragID → photo info
     private var cache: [String: UnsplashPhotoInfo] = [:]

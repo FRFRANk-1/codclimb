@@ -53,6 +53,8 @@ struct CragDetailView: View {
     @EnvironmentObject private var notifications: NotificationService
     @EnvironmentObject private var reportStore: ConditionReportStore
     @State private var showingAlertSheet = false
+    @State private var shareImage: UIImage? = nil
+    @State private var showingShareSheet = false
     @AppStorage("codclimb.useMetric") private var useMetric: Bool = false
 
     // Solar times recomputed whenever crag or date changes
@@ -106,7 +108,17 @@ struct CragDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                BookmarkButton(crag: crag)
+                HStack(spacing: 14) {
+                    if let score = viewModel.score {
+                        Button {
+                            renderShareCard(score: score)
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundStyle(Theme.Palette.textSecondary)
+                        }
+                    }
+                    BookmarkButton(crag: crag)
+                }
             }
         }
         .refreshable { await viewModel.refresh(for: crag) }
@@ -119,6 +131,11 @@ struct CragDetailView: View {
         .sheet(isPresented: $showingAlertSheet) {
             CragAlertSheet(crag: crag)
                 .environmentObject(notifications)
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let img = shareImage {
+                ShareActivitySheet(image: img, cragName: crag.name)
+            }
         }
     }
 
@@ -404,12 +421,29 @@ struct CragDetailView: View {
     }
 
     private func sevenDaySection(days: [DailySummary]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("7-Day Forecast")
                 .font(Theme.Typography.title)
                 .foregroundStyle(Theme.Palette.textPrimary)
+            ScoreSparklineView(days: days)
             DailyForecastView(days: days)
         }
+    }
+
+    // MARK: - Share card rendering
+
+    @MainActor
+    private func renderShareCard(score: ClimbScore) {
+        guard let bundle = viewModel.bundle else { return }
+        let card = ConditionsShareCard(
+            crag: crag,
+            score: score,
+            snapshot: bundle.current
+        )
+        let renderer = ImageRenderer(content: card.frame(width: 375))
+        renderer.scale = UIScreen.main.scale * 2
+        shareImage = renderer.uiImage
+        showingShareSheet = true
     }
 
     private var alertRow: some View {
@@ -544,4 +578,206 @@ struct RainWarningBanner: View {
                 .stroke(bannerColor.opacity(0.30), lineWidth: 1)
         )
     }
+}
+
+// MARK: - Score Sparkline (7-day trend)
+
+struct ScoreSparklineView: View {
+    let days: [DailySummary]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Canvas sparkline
+            Canvas { ctx, size in
+                guard days.count >= 2 else { return }
+                let W = size.width
+                let H = size.height - 20  // leave room for day labels
+                let scores = days.map { Double($0.score.value) }
+                let minS: Double = 0
+                let maxS: Double = 100
+                let stepX = W / Double(days.count - 1)
+
+                func pt(_ i: Int) -> CGPoint {
+                    let x = Double(i) * stepX
+                    let y = H - ((scores[i] - minS) / (maxS - minS)) * H
+                    return CGPoint(x: x, y: y)
+                }
+
+                // Gradient fill under the line
+                var fillPath = Path()
+                fillPath.move(to: CGPoint(x: 0, y: H))
+                for i in 0..<days.count { fillPath.addLine(to: pt(i)) }
+                fillPath.addLine(to: CGPoint(x: W, y: H))
+                fillPath.closeSubpath()
+                ctx.fill(fillPath, with: .linearGradient(
+                    Gradient(colors: [Theme.Palette.accent.opacity(0.25), Theme.Palette.accent.opacity(0.03)]),
+                    startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: H)
+                ))
+
+                // Line
+                var linePath = Path()
+                linePath.move(to: pt(0))
+                for i in 1..<days.count { linePath.addLine(to: pt(i)) }
+                ctx.stroke(linePath, with: .color(Theme.Palette.accent.opacity(0.7)),
+                           style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+
+                // Score dots
+                for i in 0..<days.count {
+                    let p = pt(i)
+                    let color = days[i].score.verdict.color
+                    let dotRect = CGRect(x: p.x - 4, y: p.y - 4, width: 8, height: 8)
+                    ctx.fill(Path(ellipseIn: dotRect), with: .color(color))
+                    ctx.stroke(Path(ellipseIn: dotRect), with: .color(.white.opacity(0.8)),
+                               style: StrokeStyle(lineWidth: 1.5))
+                }
+
+                // Highlight best day
+                if let bestIdx = scores.indices.max(by: { scores[$0] < scores[$1] }) {
+                    let p = pt(bestIdx)
+                    let glowRect = CGRect(x: p.x - 7, y: p.y - 7, width: 14, height: 14)
+                    ctx.fill(Path(ellipseIn: glowRect), with: .color(days[bestIdx].score.verdict.color.opacity(0.25)))
+                }
+            }
+            .frame(height: 80)
+
+            // Day labels
+            HStack(spacing: 0) {
+                ForEach(days) { day in
+                    VStack(spacing: 2) {
+                        Text(dayLabel(day.date))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(day.isToday ? Theme.Palette.accent : Theme.Palette.textTertiary)
+                        Text("\(day.score.value)")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(day.score.verdict.color)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .padding(Theme.Metrics.cardPadding)
+        .background(Theme.Palette.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+            .stroke(Theme.Palette.divider, lineWidth: 1))
+    }
+
+    private func dayLabel(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) { return "Today" }
+        let f = DateFormatter(); f.dateFormat = "EEE"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Conditions Share Card (rendered to image)
+
+struct ConditionsShareCard: View {
+    let crag: Crag
+    let score: ClimbScore
+    let snapshot: WeatherSnapshot
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header strip
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(crag.name)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text(crag.region.uppercased())
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .tracking(0.8)
+                }
+                Spacer()
+                // Score circle
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(0.15))
+                        .frame(width: 64, height: 64)
+                    VStack(spacing: 1) {
+                        Text("\(score.value)")
+                            .font(.system(size: 26, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text(score.verdict.rawValue.uppercased())
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .tracking(0.5)
+                    }
+                }
+            }
+            .padding(20)
+            .background(score.verdict.color.gradient)
+
+            // Stats strip
+            HStack(spacing: 0) {
+                shareStatCell(icon: "thermometer.medium",
+                              value: "\(Int(snapshot.temperatureF.rounded()))°F",
+                              label: "Temp")
+                Divider().frame(height: 36)
+                shareStatCell(icon: "drop",
+                              value: "\(Int(snapshot.humidityPct.rounded()))%",
+                              label: "Humidity")
+                Divider().frame(height: 36)
+                shareStatCell(icon: "wind",
+                              value: "\(Int(snapshot.windMph.rounded())) mph",
+                              label: "Wind")
+                Divider().frame(height: 36)
+                shareStatCell(icon: "cloud",
+                              value: "\(Int(snapshot.cloudCoverPct.rounded()))%",
+                              label: "Clouds")
+            }
+            .background(Color(UIColor.systemBackground))
+
+            // Footer
+            HStack {
+                Image(systemName: "mountain.2.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.Palette.accent)
+                Text("CodClimb")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.Palette.accent)
+                Spacer()
+                Text(Date(), style: .date)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.secondary)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(Color(UIColor.systemBackground))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+        .padding(16)
+        .background(Color(UIColor.secondarySystemBackground))
+    }
+
+    private func shareStatCell(icon: String, value: String, label: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.Palette.accent)
+            Text(value)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.primary)
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(Color.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Share activity sheet wrapper
+
+struct ShareActivitySheet: UIViewControllerRepresentable {
+    let image: UIImage
+    let cragName: String
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let text = "Conditions at \(cragName) — via CodClimb 🧗"
+        return UIActivityViewController(activityItems: [image, text], applicationActivities: nil)
+    }
+    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
