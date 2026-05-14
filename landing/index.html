@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodClimb — Know Before You Go</title>
+  <meta name="description" content="Live climbing conditions and climbability scores for 123 US crags. Temperature, dryness, humidity, and rain forecasts — all in one place." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-dark:   #1a3212;
+      --green-mid:    #2d5a20;
+      --green-bright: #4a8a34;
+      --green-accent: #6abf44;
+      --green-light:  #a8d88a;
+      --cream:        #f5f2eb;
+      --white:        #ffffff;
+      --text-dark:    #1a2014;
+      --text-mid:     #4a5a42;
+      --text-light:   #7a8a72;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: var(--text-dark);
+      background: var(--white);
+      line-height: 1.6;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(26, 50, 18, 0.96);
+      backdrop-filter: blur(10px);
+      padding: 0 24px;
+      height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none;
+    }
+    .nav-logo-icon {
+      width: 32px; height: 32px; border-radius: 7px;
+      background: var(--green-mid);
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    .nav-logo-text {
+      font-size: 18px; font-weight: 700; color: var(--white);
+      letter-spacing: -0.3px;
+    }
+    .nav-cta {
+      background: var(--green-accent);
+      color: var(--green-dark);
+      font-size: 13px; font-weight: 600;
+      padding: 8px 18px; border-radius: 20px;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .nav-cta:hover { opacity: 0.85; }
+
+    /* HERO */
+    .hero {
+      background: var(--green-dark);
+      padding: 80px 24px 60px;
+      text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0; height: 180px;
+      background: var(--green-mid);
+      clip-path: polygon(0 60%, 25% 30%, 50% 55%, 75% 20%, 100% 50%, 100% 100%, 0 100%);
+      opacity: 0.4;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(106, 191, 68, 0.15);
+      border: 1px solid rgba(106, 191, 68, 0.35);
+      color: var(--green-accent);
+      font-size: 12px; font-weight: 600; letter-spacing: 1px;
+      padding: 5px 14px; border-radius: 20px;
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 800; letter-spacing: -1px;
+      color: var(--white);
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    .hero h1 span { color: var(--green-accent); }
+    .hero p {
+      font-size: 18px; color: rgba(255,255,255,0.7);
+      max-width: 480px; margin: 0 auto 36px;
+    }
+    .hero-buttons {
+      display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+      position: relative; z-index: 1;
+    }
+    .btn-primary {
+      background: var(--green-accent);
+      color: var(--green-dark);
+      font-weight: 700; font-size: 15px;
+      padding: 14px 28px; border-radius: 28px;
+      text-decoration: none;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: var(--white);
+      font-weight: 600; font-size: 15px;
+      padding: 14px 28px; border-radius: 28px;
+      text-decoration: none; border: 1px solid rgba(255,255,255,0.2);
+      transition: background 0.2s;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+
+    /* PHONE MOCKUP */
+    .mockup-wrap {
+      margin: 56px auto -40px;
+      max-width: 280px;
+      position: relative; z-index: 1;
+    }
+    .phone-frame {
+      background: #111;
+      border-radius: 44px;
+      padding: 14px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+    }
+    .phone-screen {
+      background: #f5f2eb;
+      border-radius: 32px;
+      overflow: hidden;
+      aspect-ratio: 9/19.5;
+      display: flex; flex-direction: column;
+    }
+    .screen-header {
+      background: var(--green-mid);
+      padding: 18px 16px 14px;
+      color: white;
+    }
+    .screen-header-title { font-size: 11px; opacity: 0.7; margin-bottom: 2px; }
+    .screen-crag-name { font-size: 17px; font-weight: 700; }
+    .screen-score-row {
+      display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    }
+    .score-circle {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      border: 2.5px solid var(--green-accent);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .score-number { font-size: 20px; font-weight: 800; color: var(--green-accent); }
+    .score-label { font-size: 13px; font-weight: 600; color: white; }
+    .score-sub { font-size: 11px; opacity: 0.65; color: white; }
+    .screen-body { padding: 12px; flex: 1; }
+    .stat-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 6px; margin-bottom: 10px;
+    }
+    .stat-card {
+      background: white; border-radius: 10px; padding: 8px 10px;
+    }
+    .stat-label { font-size: 9px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 14px; font-weight: 700; color: var(--text-dark); }
+    .stat-good { color: var(--green-bright); }
+    .screen-tag {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+      background: #e8f5e0; color: var(--green-bright);
+      padding: 4px 10px; border-radius: 10px; display: inline-block;
+      margin-bottom: 8px;
+    }
+    .mini-bar { height: 5px; border-radius: 3px; background: #e0e0d8; margin-bottom: 6px; overflow: hidden; }
+    .mini-bar-fill { height: 100%; border-radius: 3px; background: var(--green-accent); }
+
+    /* STATS STRIP */
+    .stats-strip {
+      background: var(--cream);
+      padding: 56px 24px 40px;
+      display: flex; justify-content: center; gap: 0; flex-wrap: wrap;
+    }
+    .stat-item {
+      text-align: center;
+      padding: 16px 40px;
+      border-right: 1px solid rgba(0,0,0,0.08);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-big { font-size: 40px; font-weight: 800; color: var(--green-mid); letter-spacing: -1px; }
+    .stat-desc { font-size: 13px; color: var(--text-mid); margin-top: 2px; }
+
+    /* FEATURES */
+    .features {
+      padding: 72px 24px;
+      max-width: 960px; margin: 0 auto;
+    }
+    .section-label {
+      font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
+      color: var(--green-bright); text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-size: clamp(26px, 4vw, 38px); font-weight: 800;
+      color: var(--text-dark); letter-spacing: -0.5px;
+      margin-bottom: 48px; max-width: 520px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+    }
+    .feature-card {
+      background: var(--cream);
+      border-radius: 16px; padding: 28px;
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+    .feature-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--green-mid);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px; font-size: 22px;
+    }
+    .feature-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: var(--text-mid); line-height: 1.6; }
+
+    /* HOW IT WORKS */
+    .how {
+      background: var(--green-dark);
+      padding: 72px 24px;
+      color: white;
+    }
+    .how-inner { max-width: 800px; margin: 0 auto; }
+    .how .section-title { color: white; }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 32px; margin-top: 48px;
+    }
+    .step { text-align: center; }
+    .step-num {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(106,191,68,0.15);
+      border: 1.5px solid var(--green-accent);
+      color: var(--green-accent);
+      font-size: 16px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 14px;
+    }
+    .step h4 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .step p { font-size: 13px; color: rgba(255,255,255,0.6); }
+
+    /* CTA */
+    .cta-section {
+      padding: 80px 24px;
+      text-align: center;
+      background: var(--cream);
+    }
+    .cta-section h2 {
+      font-size: clamp(28px, 4vw, 42px); font-weight: 800;
+      color: var(--text-dark); letter-spacing: -0.5px;
+      margin-bottom: 14px;
+    }
+    .cta-section p { font-size: 16px; color: var(--text-mid); margin-bottom: 32px; }
+    .notify-form {
+      display: flex; gap: 10px; justify-content: center;
+      flex-wrap: wrap; max-width: 420px; margin: 0 auto;
+    }
+    .notify-input {
+      flex: 1; min-width: 200px;
+      padding: 13px 18px; border-radius: 28px;
+      border: 1.5px solid rgba(0,0,0,0.12);
+      font-size: 15px; outline: none;
+      background: white;
+    }
+    .notify-input:focus { border-color: var(--green-accent); }
+    .notify-btn {
+      background: var(--green-mid);
+      color: white; font-weight: 700; font-size: 14px;
+      padding: 13px 24px; border-radius: 28px; border: none;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .notify-btn:hover { background: var(--green-bright); }
+    .notify-note { font-size: 12px; color: var(--text-light); margin-top: 12px; }
+
+    /* PRIVACY */
+    .privacy {
+      background: white;
+      padding: 60px 24px;
+      max-width: 720px; margin: 0 auto;
+    }
+    .privacy h2 { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
+    .privacy h3 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+    .privacy p, .privacy ul { font-size: 14px; color: var(--text-mid); line-height: 1.7; }
+    .privacy ul { padding-left: 20px; }
+    .privacy ul li { margin-bottom: 4px; }
+
+    /* FOOTER */
+    footer {
+      background: var(--green-dark);
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+      padding: 28px 24px;
+      font-size: 13px;
+    }
+    footer a { color: var(--green-light); text-decoration: none; }
+
+    @media (max-width: 480px) {
+      .stat-item { padding: 16px 20px; border-right: none; border-bottom: 1px solid rgba(0,0,0,0.08); }
+      .stat-item:last-child { border-bottom: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">
+    <div class="nav-logo-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <polygon points="12,3 4,21 20,21" fill="rgba(255,255,255,0.15)"/>
+        <polygon points="12,3 8,21 16,21" fill="white"/>
+        <line x1="12" y1="3" x2="12" y2="0.5" stroke="white" stroke-width="1.5"/>
+        <polygon points="12,0.5 15,2.5 12,4.5" fill="white"/>
+      </svg>
+    </div>
+    <span class="nav-logo-text">CodClimb</span>
+  </a>
+  <a class="nav-cta" href="#notify">Get early access</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">iOS App · Coming Soon</div>
+  <h1>Know before<br><span>you go.</span></h1>
+  <p>Live climbing conditions and climbability scores for 123 US crags — so you never show up to wet rock again.</p>
+  <div class="hero-buttons">
+    <a class="btn-primary" href="#notify">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Notify me at launch
+    </a>
+    <a class="btn-secondary" href="#features">See features</a>
+  </div>
+
+  <!-- PHONE MOCKUP -->
+  <div class="mockup-wrap">
+    <div class="phone-frame">
+      <div class="phone-screen">
+        <div class="screen-header">
+          <div class="screen-header-title">Rumney, NH</div>
+          <div class="screen-crag-name">Rumney Main Cliff</div>
+          <div class="screen-score-row">
+            <div class="score-circle">
+              <span class="score-number">84</span>
+            </div>
+            <div>
+              <div class="score-label">Send conditions.</div>
+              <div class="score-sub">Pack the tape.</div>
+            </div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="screen-tag">CONDITIONS NOW</div>
+          <div class="stat-row">
+            <div class="stat-card">
+              <div class="stat-label">Temp</div>
+              <div class="stat-value">54°F</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Humidity</div>
+              <div class="stat-value stat-good">42%</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Dry since</div>
+              <div class="stat-value stat-good">36h</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Wind</div>
+              <div class="stat-value">9 mph</div>
+            </div>
+          </div>
+          <div class="screen-tag">SCORE BREAKDOWN</div>
+          <div style="margin-bottom:6px">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:#7a8a72;margin-bottom:3px"><span>Temperature</span><span>92</span></div>
+            <div class="mini-bar"><div class="mini-bar-fill" style="width:92%"></div></div>
+          </div>
+          <div style="margin-bottom:6px">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:#7a8a72;margin-bottom:3px"><span>Dryness</span><span>88</span></div>
+            <div class="mini-bar"><div class="mini-bar-fill" style="width:88%"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:#7a8a72;margin-bottom:3px"><span>Humidity</span><span>95</span></div>
+            <div class="mini-bar"><div class="mini-bar-fill" style="width:95%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS STRIP -->
+<div class="stats-strip">
+  <div class="stat-item">
+    <div class="stat-big">123</div>
+    <div class="stat-desc">US crags tracked</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-big">5</div>
+    <div class="stat-desc">scoring factors</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-big">7</div>
+    <div class="stat-desc">day forecast</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-big">Free</div>
+    <div class="stat-desc">always</div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="section-label">Features</div>
+  <div class="section-title">Everything you need to plan a perfect day on the wall.</div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🎯</div>
+      <h3>Climbability score</h3>
+      <p>A single 0–100 score per crag, weighted by temperature, dryness, humidity, wind, and cloud cover. No more guessing.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌧️</div>
+      <h3>Rain & dryness tracker</h3>
+      <p>See exactly how long ago it rained and get warnings when rain is approaching — so your limestone isn't a waterfall.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📅</div>
+      <h3>Weekend trip planner</h3>
+      <p>CodClimb ranks your saved crags by the best Saturday and Sunday forecast windows. Just show up and climb.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">👥</div>
+      <h3>Community reports</h3>
+      <p>Climbers post real-time condition updates with photos. Seepage, rockfall, fixed gear status — straight from the crag.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🗺️</div>
+      <h3>Score map</h3>
+      <p>Browse all 123 crags on a map with color-coded score pins. Green means go, red means rest day.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔔</div>
+      <h3>Condition alerts</h3>
+      <p>Set a score threshold for your home crag and get notified the moment conditions improve. No more checking every morning.</p>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how">
+  <div class="how-inner">
+    <div class="section-label" style="color:var(--green-accent)">How it works</div>
+    <div class="section-title">From forecast to send in three steps.</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>Find your crag</h4>
+        <p>Search or browse the map. 123 US crags across every major climbing region.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>Check the score</h4>
+        <p>See the current climbability score, hourly forecast, and score breakdown by factor.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>Go climb</h4>
+        <p>Pack the tape, drive to the crag, send your project. Post a condition report for the community.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA / NOTIFY -->
+<section class="cta-section" id="notify">
+  <h2>Be the first to know.</h2>
+  <p>CodClimb is coming to the App Store soon. Drop your email and we'll notify you at launch.</p>
+  <form class="notify-form" onsubmit="handleSubmit(event)">
+    <input class="notify-input" type="email" placeholder="your@email.com" required />
+    <button class="notify-btn" type="submit">Notify me</button>
+  </form>
+  <p class="notify-note" id="form-msg">No spam. One email when the app launches.</p>
+</section>
+
+<!-- PRIVACY POLICY -->
+<section class="privacy" id="privacy">
+  <h2>Privacy Policy</h2>
+  <p>Last updated: May 2026</p>
+
+  <h3>What we collect</h3>
+  <p>CodClimb collects the minimum data needed to function:</p>
+  <ul>
+    <li>Email address and display name (only if you create an account)</li>
+    <li>Profile photo (only if you upload one)</li>
+    <li>Condition reports and photos you voluntarily submit</li>
+    <li>Saved crags (stored locally on your device)</li>
+    <li>Approximate location (only when you use the map, never stored)</li>
+  </ul>
+
+  <h3>What we don't collect</h3>
+  <ul>
+    <li>We do not sell your data to third parties</li>
+    <li>We do not track you across other apps or websites</li>
+    <li>We do not show ads</li>
+    <li>Anonymous sessions require no account and store no personal data</li>
+  </ul>
+
+  <h3>Third-party services</h3>
+  <p>CodClimb uses the following services, each with their own privacy policies:</p>
+  <ul>
+    <li><strong>Firebase (Google)</strong> — authentication and cloud storage of condition reports</li>
+    <li><strong>Open-Meteo</strong> — weather data (no account or personal data required)</li>
+    <li><strong>Unsplash</strong> — crag photos (no personal data shared)</li>
+  </ul>
+
+  <h3>Data deletion</h3>
+  <p>You can delete your account and all associated data at any time from the Profile tab in the app. Condition reports you've posted will also be removed.</p>
+
+  <h3>Contact</h3>
+  <p>Questions? Email us at <a href="mailto:codclimbapp@outlook.com" style="color:var(--green-bright)">codclimbapp@outlook.com</a></p>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>© 2026 CodClimb · <a href="#privacy">Privacy Policy</a> · <a href="mailto:codclimbapp@outlook.com">Contact</a> · <a href="https://instagram.com/codclimb">@codclimb</a></p>
+</footer>
+
+<script>
+  function handleSubmit(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    const msg = document.getElementById('form-msg');
+    btn.textContent = 'Done!';
+    btn.style.background = '#3a7028';
+    btn.disabled = true;
+    msg.textContent = "You're on the list. We'll email you when CodClimb launches.";
+    msg.style.color = '#4a8a34';
+  }
+</script>
+
+</body>
+</html>
