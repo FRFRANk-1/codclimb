@@ -7,14 +7,22 @@ import PhotosUI
 struct CommunityFeedView: View {
     @EnvironmentObject private var reportStore: ConditionReportStore
     @State private var showingSubmitSheet = false
+    @State private var showingAuth = false
     @State private var selectedCragID: String? = nil
+
+    private let firebase = FirebaseService.shared
+    private var isGuest: Bool { firebase.isAnonymous }
 
     private var crags: [Crag] {
         (try? CragRepository.loadAll()) ?? []
     }
 
-    private var displayedReports: [ConditionReport] {
+    private var allReports: [ConditionReport] {
         reportStore.recentReports(limit: 40)
+    }
+
+    private var displayedReports: [ConditionReport] {
+        isGuest ? Array(allReports.prefix(3)) : allReports
     }
 
     var body: some View {
@@ -46,6 +54,9 @@ struct CommunityFeedView: View {
         .sheet(isPresented: $showingSubmitSheet) {
             SubmitReportView(crags: crags)
                 .environmentObject(reportStore)
+        }
+        .sheet(isPresented: $showingAuth) {
+            AuthView()
         }
     }
 
@@ -108,35 +119,134 @@ struct CommunityFeedView: View {
                     ReportCard(report: report, crag: crag)
                         .environmentObject(reportStore)
                 }
+                // Gate card for guests
+                if isGuest && allReports.count > 3 {
+                    signInGateCard
+                }
             }
         }
     }
 
-    private var emptyState: some View {
+    private var signInGateCard: some View {
         VStack(spacing: 16) {
-            Image(systemName: "person.2.slash")
-                .font(.system(size: 40))
-                .foregroundStyle(Theme.Palette.textTertiary)
-            Text("No reports yet")
-                .font(Theme.Typography.headline)
+            ZStack {
+                Circle().fill(Theme.Palette.accentMuted).frame(width: 60, height: 60)
+                Image(systemName: "lock.open.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Theme.Palette.accent)
+            }
+            VStack(spacing: 6) {
+                Text("\(allReports.count - 3) more reports")
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+                Text("Create a free account to see all community reports, post your own conditions, and get crag alerts.")
+                    .font(Theme.Typography.callout)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            Button {
+                showingAuth = true
+            } label: {
+                Text("Sign Up — It's Free")
+                    .font(Theme.Typography.callout)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(Theme.Palette.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            Button("Sign in to existing account") {
+                showingAuth = true
+            }
+            .font(Theme.Typography.caption)
+            .foregroundStyle(Theme.Palette.accent)
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                .fill(Theme.Palette.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                .stroke(Theme.Palette.accent.opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 0) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(Theme.Palette.accentMuted)
+                    .frame(width: 96, height: 96)
+                Image(systemName: "mountain.2.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(Theme.Palette.accent)
+            }
+            .padding(.bottom, 24)
+
+            Text("No Reports This Week")
+                .font(Theme.Typography.title)
                 .foregroundStyle(Theme.Palette.textPrimary)
-            Text("Be the first to post conditions from the wall.")
+                .padding(.bottom, 10)
+
+            Text("CodClimb shows the last 7 days of community beta. Get the feed started — post the first report from your next session.")
                 .font(Theme.Typography.callout)
                 .foregroundStyle(Theme.Palette.textSecondary)
                 .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .padding(.bottom, 28)
+
             Button {
                 showingSubmitSheet = true
             } label: {
-                Text("Post a report")
-                    .font(Theme.Typography.headline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 10)
-                    .background(Capsule().fill(Theme.Palette.accent))
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.pencil")
+                    Text("Post First Report")
+                }
+                .font(Theme.Typography.headline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Theme.Palette.accent)
+                )
+            }
+            .padding(.bottom, 20)
+
+            // Tip chips
+            HStack(spacing: 8) {
+                EmptyStateTipChip(icon: "camera.fill", text: "Add a photo")
+                EmptyStateTipChip(icon: "hand.thumbsup.fill", text: "React")
+                EmptyStateTipChip(icon: "bell.badge", text: "Set alerts")
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(.top, 32)
+        .padding(.bottom, 48)
+        .padding(.horizontal, 8)
+    }
+}
+
+// MARK: - Shared empty-state tip chip
+
+struct EmptyStateTipChip: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+        }
+        .foregroundStyle(Theme.Palette.accent)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(Theme.Palette.accentMuted))
     }
 }
 
@@ -180,21 +290,50 @@ struct CragConditionFeedView: View {
             }
 
             if reports.isEmpty {
-                HStack(spacing: 12) {
-                    Image(systemName: "text.bubble")
-                        .font(.system(size: 20))
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("No reports yet for this crag")
-                            .font(Theme.Typography.callout)
-                            .foregroundStyle(Theme.Palette.textSecondary)
-                        Text("Tap \"Report\" to share current conditions.")
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Palette.textTertiary)
+                VStack(spacing: 16) {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(Theme.Palette.accentMuted)
+                                .frame(width: 48, height: 48)
+                            Image(systemName: "person.wave.2")
+                                .font(.system(size: 20))
+                                .foregroundStyle(Theme.Palette.accent)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Be the first to report")
+                                .font(Theme.Typography.callout)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Theme.Palette.textPrimary)
+                            Text("No one has posted conditions here yet. Tap Report after your session.")
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Palette.textSecondary)
+                                .lineSpacing(2)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        showingSubmitSheet = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("Post Conditions")
+                                .font(Theme.Typography.callout)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundStyle(Theme.Palette.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Theme.Palette.accentMuted)
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(Theme.Metrics.cardPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
                         .fill(Theme.Palette.surface)
@@ -235,114 +374,126 @@ struct ReportCard: View {
     let report: ConditionReport
     let crag: Crag?
     @EnvironmentObject private var reportStore: ConditionReportStore
+    @EnvironmentObject private var profileStore: UserProfileStore
     @State private var didThumbsUp = false
+    @State private var showingDetail = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header row
-            HStack(alignment: .center, spacing: 10) {
-                avatarCircle
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 6) {
-                        Text(report.author)
-                            .font(Theme.Typography.headline)
-                            .foregroundStyle(Theme.Palette.textPrimary)
-                        Text("·")
-                            .foregroundStyle(Theme.Palette.textTertiary)
-                        Text(report.relativeTime)
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Palette.textTertiary)
+        Button {
+            showingDetail = true
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                // Header row
+                HStack(alignment: .center, spacing: 10) {
+                    avatarCircle
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 6) {
+                            Text(report.author)
+                                .font(Theme.Typography.headline)
+                                .foregroundStyle(Theme.Palette.textPrimary)
+                            Text("·")
+                                .foregroundStyle(Theme.Palette.textTertiary)
+                            Text(report.relativeTime)
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Palette.textTertiary)
+                        }
+                        if let crag {
+                            Text(crag.name)
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Palette.accent)
+                        }
                     }
-                    if let crag {
-                        Text(crag.name)
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Palette.accent)
+                    Spacer()
+                    conditionBadge
+                }
+
+                // Body text
+                if !report.bodyText.isEmpty {
+                    Text(report.bodyText)
+                        .font(Theme.Typography.callout)
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(6)
+                }
+
+                // Photo (if attached)
+                if let urlStr = report.photoURL, let url = URL(string: urlStr) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 200)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        case .failure:
+                            EmptyView()
+                        case .empty:
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Theme.Palette.surfaceElevated)
+                                .frame(height: 200)
+                                .overlay(ProgressView())
+                        @unknown default:
+                            EmptyView()
+                        }
                     }
                 }
-                Spacer()
-                conditionBadge
-            }
 
-            // Body text
-            if !report.bodyText.isEmpty {
-                Text(report.bodyText)
-                    .font(Theme.Typography.callout)
-                    .foregroundStyle(Theme.Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .lineLimit(6)
-            }
-
-            // Photo (if attached)
-            if let urlStr = report.photoURL, let url = URL(string: urlStr) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 200)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    case .failure:
-                        EmptyView()
-                    case .empty:
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Theme.Palette.surfaceElevated)
-                            .frame(height: 200)
-                            .overlay(ProgressView())
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
-            }
-
-            // Footer: crowd + thumbs up
-            HStack(spacing: 14) {
-                // Crowd level
-                HStack(spacing: 4) {
-                    Image(systemName: report.crowdLevel.icon)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                    Text(report.crowdLevel.rawValue)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                }
-                Spacer()
-                // Thumbs up
-                Button {
-                    guard !didThumbsUp else { return }
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-                        didThumbsUp = true
-                        reportStore.thumbsUp(report: report)
-                    }
-                } label: {
+                // Footer: crowd + thumbs up
+                HStack(spacing: 14) {
+                    // Crowd level
                     HStack(spacing: 4) {
-                        Image(systemName: didThumbsUp ? "hand.thumbsup.fill" : "hand.thumbsup")
-                            .font(.system(size: 13))
-                            .foregroundStyle(didThumbsUp ? Theme.Palette.accent : Theme.Palette.textTertiary)
-                        Text("\(report.thumbsUp + (didThumbsUp ? 1 : 0))")
+                        Image(systemName: report.crowdLevel.icon)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        Text(report.crowdLevel.rawValue)
                             .font(Theme.Typography.caption)
                             .foregroundStyle(Theme.Palette.textTertiary)
                     }
+                    Spacer()
+                    // Thumbs up — inner button takes priority over outer tap
+                    Button {
+                        guard !didThumbsUp else { return }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                            didThumbsUp = true
+                            reportStore.thumbsUp(report: report)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: didThumbsUp ? "hand.thumbsup.fill" : "hand.thumbsup")
+                                .font(.system(size: 13))
+                                .foregroundStyle(didThumbsUp ? Theme.Palette.accent : Theme.Palette.textTertiary)
+                            Text("\(report.thumbsUp + (didThumbsUp ? 1 : 0))")
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Palette.textTertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(Theme.Metrics.cardPadding)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                    .fill(Theme.Palette.surface)
+                    .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                    .stroke(
+                        report.rockCondition.isClimbable
+                            ? Theme.Palette.accent.opacity(0.2)
+                            : Theme.Palette.divider,
+                        lineWidth: 1
+                    )
+            )
         }
-        .padding(Theme.Metrics.cardPadding)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
-                .fill(Theme.Palette.surface)
-                .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
-                .stroke(
-                    report.rockCondition.isClimbable
-                        ? Theme.Palette.accent.opacity(0.2)
-                        : Theme.Palette.divider,
-                    lineWidth: 1
-                )
-        )
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showingDetail) {
+            ReportDetailSheet(report: report, crag: crag)
+                .environmentObject(profileStore)
+                .environmentObject(reportStore)
+        }
     }
 
     private var avatarCircle: some View {
@@ -381,6 +532,185 @@ struct ReportCard: View {
         case .wet, .seeping: return Theme.Palette.nogo
         case .icy:      return Color(red: 0.4, green: 0.6, blue: 0.85)
         }
+    }
+}
+
+// MARK: - Report Detail Sheet
+
+struct ReportDetailSheet: View {
+    let report: ConditionReport
+    let crag: Crag?
+
+    @EnvironmentObject private var reportStore: ConditionReportStore
+    @EnvironmentObject private var profileStore: UserProfileStore
+    @StateObject private var listVM = CragListViewModel()
+    @Environment(\.dismiss) private var dismiss
+
+    private var userReports: [ConditionReport] {
+        reportStore.recentReports(limit: 100).filter { $0.author == report.author }
+    }
+
+    private var allCrags: [Crag] {
+        (try? CragRepository.loadAll()) ?? []
+    }
+
+    private var badgeColor: Color {
+        switch report.rockCondition {
+        case .perfect:  return Theme.Palette.send
+        case .good:     return Theme.Palette.good
+        case .damp:     return Theme.Palette.marginal
+        case .wet, .seeping: return Theme.Palette.nogo
+        case .icy:      return Color(red: 0.4, green: 0.6, blue: 0.85)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+
+                    // ── Full report card ────────────────────────────────────
+                    VStack(alignment: .leading, spacing: 14) {
+                        // Condition badge + crag name header
+                        HStack(spacing: 8) {
+                            HStack(spacing: 4) {
+                                Text(report.rockCondition.emoji)
+                                    .font(.system(size: 14))
+                                Text(report.rockCondition.rawValue)
+                                    .font(Theme.Typography.callout)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(badgeColor)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(badgeColor.opacity(0.12)))
+
+                            if let crag {
+                                Text("at \(crag.name)")
+                                    .font(Theme.Typography.callout)
+                                    .foregroundStyle(Theme.Palette.textSecondary)
+                            }
+                            Spacer()
+                            Text(report.relativeTime)
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Palette.textTertiary)
+                        }
+
+                        // Body text
+                        if !report.bodyText.isEmpty {
+                            Text(report.bodyText)
+                                .font(Theme.Typography.body)
+                                .foregroundStyle(Theme.Palette.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        // Photo
+                        if let urlStr = report.photoURL, let url = URL(string: urlStr) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 240)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                case .failure:
+                                    EmptyView()
+                                case .empty:
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Theme.Palette.surfaceElevated)
+                                        .frame(height: 240)
+                                        .overlay(ProgressView())
+                                @unknown default:
+                                    EmptyView()
+                                }
+                            }
+                        }
+
+                        // Crowd level pill
+                        HStack(spacing: 6) {
+                            Image(systemName: report.crowdLevel.icon)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.Palette.textTertiary)
+                            Text("Crowd: \(report.crowdLevel.rawValue)")
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Palette.textTertiary)
+                        }
+                    }
+                    .padding(Theme.Metrics.cardPadding)
+                    .background(Theme.Palette.surface)
+
+                    Divider()
+
+                    // ── Poster profile section ──────────────────────────────
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("About the Climber")
+                            .font(Theme.Typography.title)
+                            .foregroundStyle(Theme.Palette.textPrimary)
+
+                        HStack(spacing: 14) {
+                            // Avatar
+                            ZStack {
+                                Circle()
+                                    .fill(Theme.Palette.accentMuted)
+                                    .frame(width: 56, height: 56)
+                                Text(String(report.author.prefix(1)).uppercased())
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundStyle(Theme.Palette.accent)
+                            }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(report.author)
+                                    .font(Theme.Typography.headline)
+                                    .foregroundStyle(Theme.Palette.textPrimary)
+                                Text("\(userReports.count) report\(userReports.count == 1 ? "" : "s") posted")
+                                    .font(Theme.Typography.caption)
+                                    .foregroundStyle(Theme.Palette.textSecondary)
+                            }
+                            Spacer()
+                        }
+
+                        // Recent reports by this user
+                        if userReports.count > 1 {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Other reports by \(report.author)")
+                                    .font(Theme.Typography.callout)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(Theme.Palette.textSecondary)
+
+                                ForEach(userReports.filter { $0.id != report.id }.prefix(3)) { r in
+                                    MiniReportRow(report: r, cragName: allCrags.first(where: { $0.id == r.cragID })?.name)
+                                }
+                            }
+                        }
+                    }
+                    .padding(Theme.Metrics.cardPadding)
+
+                    Divider()
+                        .padding(.horizontal, Theme.Metrics.cardPadding)
+
+                    // ── Discover climbing areas ─────────────────────────────
+                    VStack(alignment: .leading, spacing: 0) {
+                        RecommendedCragsSection(viewModel: listVM)
+                    }
+                    .padding(.horizontal, Theme.Metrics.cardPadding)
+                    .padding(.bottom, 40)
+                }
+            }
+            .background(Theme.Palette.background.ignoresSafeArea())
+            .navigationTitle(report.author)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                        .tint(Theme.Palette.accent)
+                }
+            }
+            .task {
+                await listVM.load()
+            }
+        }
+        .presentationDetents([.large])
     }
 }
 
@@ -540,9 +870,9 @@ struct SubmitReportView: View {
                             }
                         }
                     }
-                    .onChange(of: photoItem) { _, newItem in
+                    .onChange(of: photoItem) { item in
                         Task {
-                            guard let item = newItem,
+                            guard let item,
                                   let data = try? await item.loadTransferable(type: Data.self),
                                   let uiImage = UIImage(data: data)
                             else { return }

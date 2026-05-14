@@ -16,6 +16,8 @@ final class FirebaseService: ObservableObject {
     private let db = Firestore.firestore()
     @Published private(set) var currentUserID: String = ""
     @Published private(set) var isSignedIn: Bool = false
+    @Published private(set) var isAnonymous: Bool = true
+    @Published private(set) var userEmail: String? = nil
 
     // Firestore date en/decoding via seconds-since-1970
     private static let encoder: JSONEncoder = {
@@ -43,14 +45,55 @@ final class FirebaseService: ObservableObject {
             if let user = Auth.auth().currentUser {
                 currentUserID = user.uid
                 isSignedIn = true
+                isAnonymous = user.isAnonymous
+                userEmail = user.email
             } else {
                 let result = try await Auth.auth().signInAnonymously()
                 currentUserID = result.user.uid
                 isSignedIn = true
+                isAnonymous = true
+                userEmail = nil
             }
         } catch {
             print("[FirebaseService] Auth error: \(error.localizedDescription)")
         }
+    }
+
+    /// Create a new account with email + password.
+    func signUp(email: String, password: String, displayName: String) async throws {
+        let result = try await Auth.auth().createUser(withEmail: email, password: password)
+        // Update display name in Firebase Auth profile
+        let changeRequest = result.user.createProfileChangeRequest()
+        changeRequest.displayName = displayName
+        try await changeRequest.commitChanges()
+        currentUserID = result.user.uid
+        isSignedIn = true
+        isAnonymous = false
+        userEmail = email
+    }
+
+    /// Sign in with email + password.
+    func signIn(email: String, password: String) async throws {
+        let result = try await Auth.auth().signIn(withEmail: email, password: password)
+        currentUserID = result.user.uid
+        isSignedIn = true
+        isAnonymous = false
+        userEmail = result.user.email
+    }
+
+    /// Send a password reset email.
+    func resetPassword(email: String) async throws {
+        try await Auth.auth().sendPasswordReset(withEmail: email)
+    }
+
+    /// Sign out — falls back to anonymous session.
+    func signOut() async {
+        do {
+            try Auth.auth().signOut()
+        } catch {
+            print("[FirebaseService] Sign out error: \(error)")
+        }
+        await signInAnonymously()
     }
 
     // MARK: - Condition Reports
@@ -95,6 +138,19 @@ final class FirebaseService: ObservableObject {
     }
 
     // MARK: - Photo Storage
+
+    /// Upload avatar JPEG (~100KB compressed) and return download URL.
+    /// Path: avatars/{uid}.jpg
+    func uploadAvatar(_ imageData: Data, uid: String) async throws -> String {
+        let ref = Storage.storage()
+            .reference()
+            .child("avatars/\(uid).jpg")
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        _ = try await ref.putDataAsync(imageData, metadata: metadata)
+        let url = try await ref.downloadURL()
+        return url.absoluteString
+    }
 
     /// Upload JPEG data to Firebase Storage and return the public download URL string.
     /// Path: reports/{reportID}.jpg

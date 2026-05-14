@@ -4,6 +4,7 @@ import SwiftUI
 
 struct NotificationsListView: View {
     @EnvironmentObject private var notifications: NotificationService
+    @State private var snapshots: [String: CachedCragWeather] = [:]
 
     private var activePrefs: [CragAlertPreference] {
         notifications.preferences.values
@@ -26,16 +27,26 @@ struct NotificationsListView: View {
             .navigationBarTitleDisplayMode(.large)
         }
         .task { await notifications.refreshAuthStatus() }
+        .task { loadSnapshots() }
+    }
+
+    private func loadSnapshots() {
+        for pref in activePrefs {
+            if let w = WeatherCacheClient.shared.weather(for: pref.cragId) {
+                snapshots[pref.cragId] = w
+            }
+        }
     }
 
     private var alertList: some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: 20) {
                 // Permission banner if not yet authorized
                 if notifications.authStatus == .notDetermined {
                     PermissionBanner()
                 }
 
+                // ── Alert list ──
                 VStack(spacing: 0) {
                     ForEach(activePrefs) { pref in
                         AlertRow(pref: pref)
@@ -58,10 +69,130 @@ struct NotificationsListView: View {
                     .foregroundStyle(Theme.Palette.textTertiary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
-                    .padding(.top, 4)
+
+                // ── Live Conditions snapshot ──
+                if !snapshots.isEmpty {
+                    liveConditionsSection
+                }
+
+                // ── How it works ──
+                howItWorksCard
             }
             .padding(.horizontal, Theme.Metrics.cardPadding)
             .padding(.vertical, 16)
+        }
+    }
+
+    // MARK: - Live Conditions
+
+    private var liveConditionsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Live Conditions")
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Palette.textPrimary)
+
+            VStack(spacing: 0) {
+                ForEach(activePrefs) { pref in
+                    if let weather = snapshots[pref.cragId] {
+                        let bundle = weather.toWeatherBundle()
+                        let score = ScoringService().score(for: bundle)
+                        let meetsThreshold = score.value >= pref.threshold
+
+                        HStack(spacing: 14) {
+                            ScoreBadgeView(score: score, isLoading: false, size: .small)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(pref.cragName)
+                                    .font(Theme.Typography.callout)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(Theme.Palette.textPrimary)
+                                    .lineLimit(1)
+                                Text(score.summary)
+                                    .font(Theme.Typography.caption)
+                                    .foregroundStyle(Theme.Palette.textSecondary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+
+                            // Threshold status chip
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(meetsThreshold ? Theme.Palette.good : Theme.Palette.textTertiary)
+                                    .frame(width: 7, height: 7)
+                                Text(meetsThreshold ? "Alert ready" : "Below \(pref.threshold)")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(meetsThreshold ? Theme.Palette.good : Theme.Palette.textTertiary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(
+                                    meetsThreshold
+                                        ? Theme.Palette.good.opacity(0.12)
+                                        : Theme.Palette.surfaceElevated
+                                )
+                            )
+                        }
+                        .padding(Theme.Metrics.cardPadding)
+
+                        if pref.id != activePrefs.last?.id {
+                            Divider().padding(.horizontal, Theme.Metrics.cardPadding)
+                        }
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                    .fill(Theme.Palette.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                    .stroke(Theme.Palette.divider, lineWidth: 1)
+            )
+        }
+    }
+
+    // MARK: - How It Works
+
+    private var howItWorksCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("How alerts work", systemImage: "info.circle")
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Palette.textPrimary)
+
+            HowItWorksTip(icon: "thermometer.medium", text: "Score combines temp, humidity, wind, and recent rain into a single number (0–100).")
+            HowItWorksTip(icon: "bell.badge", text: "You get notified when your crag's score hits or exceeds your threshold on an enabled day.")
+            HowItWorksTip(icon: "arrow.clockwise", text: "Conditions are checked every 30 minutes in the background while the app is installed.")
+        }
+        .padding(Theme.Metrics.cardPadding)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                .fill(Theme.Palette.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                .stroke(Theme.Palette.divider, lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - How It Works Tip
+
+private struct HowItWorksTip: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.Palette.accent)
+                .frame(width: 20)
+            Text(text)
+                .font(Theme.Typography.callout)
+                .foregroundStyle(Theme.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

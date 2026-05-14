@@ -13,29 +13,84 @@ struct OpenMeteoClient {
     }
 
     func fetch(latitude: Double, longitude: Double) async throws -> WeatherBundle {
-        var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")
-        components?.queryItems = [
-            URLQueryItem(name: "latitude", value: String(latitude)),
-            URLQueryItem(name: "longitude", value: String(longitude)),
-            URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,cloud_cover,weather_code"),
-            URLQueryItem(name: "hourly", value: "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,cloud_cover,weather_code"),
-            URLQueryItem(name: "past_days", value: "2"),
-            URLQueryItem(name: "forecast_days", value: "7"),
-            URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
-            URLQueryItem(name: "wind_speed_unit", value: "mph"),
-            URLQueryItem(name: "precipitation_unit", value: "inch"),
-            URLQueryItem(name: "timezone", value: "auto")
-        ]
-        guard let url = components?.url else { throw OpenMeteoError.badURL }
-
-        let (data, response) = try await session.data(from: url)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw OpenMeteoError.badResponse
+        // Disk cache (30-min TTL) — prevents rate-limit spikes during development
+        // and reduces Open-Meteo calls for users who revisit the same crags.
+        if let cached = readDiskCache(latitude: latitude, longitude: longitude) {
+            return cached
         }
+
+        // Build URL manually — URLComponents percent-encodes commas on iOS 26+,
+        // but Open-Meteo requires literal commas in comma-separated parameters.
+        let vars = "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,cloud_cover,weather_code"
+        let queryString =
+            "latitude=\(latitude)" +
+            "&longitude=\(longitude)" +
+            "&current=\(vars)" +
+            "&hourly=\(vars)" +
+            "&past_days=2" +
+            "&forecast_days=7" +
+            "&temperature_unit=fahrenheit" +
+            "&wind_speed_unit=mph" +
+            "&precipitation_unit=inch" +
+            "&timezone=auto"
+
+        guard let url = URL(string: "https://api.open-meteo.com/v1/forecast?\(queryString)")
+        else { throw OpenMeteoError.badURL }
+
+        print("[OpenMeteo] GET \(url)")
+        let (data, response) = try await session.data(from: url)
+        if let http = response as? HTTPURLResponse {
+            print("[OpenMeteo] HTTP \(http.statusCode) for \(url.absoluteString.prefix(80))")
+            guard (200..<300).contains(http.statusCode) else {
+                let body = String(data: data, encoding: .utf8) ?? "(no body)"
+                print("[OpenMeteo] Error body: \(body)")
+                throw OpenMeteoError.badResponse
+            }
+        }
+
+        // Persist to disk before decoding so future launches skip the network call.
+        writeDiskCache(data: data, latitude: latitude, longitude: longitude)
 
         let payload = try JSONDecoder().decode(Payload.self, from: data)
         return payload.toBundle()
     }
+
+    // MARK: - Disk cache
+
+    private static let cacheTTL: TimeInterval = 30 * 60  // 30 minutes
+
+    private var cacheDirectory: URL {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("WeatherCache")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    private func cacheURL(latitude: Double, longitude: Double) -> URL {
+        // Use integer millidegrees so filenames are safe on all filesystems.
+        let key = "weather_\(Int(latitude * 1000))_\(Int(longitude * 1000)).json"
+        return cacheDirectory.appendingPathComponent(key)
+    }
+
+    private func readDiskCache(latitude: Double, longitude: Double) -> WeatherBundle? {
+        let url = cacheURL(latitude: latitude, longitude: longitude)
+        guard
+            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+            let modified = attrs[.modificationDate] as? Date,
+            Date().timeIntervalSince(modified) < Self.cacheTTL,
+            let data = try? Data(contentsOf: url),
+            let payload = try? JSONDecoder().decode(Payload.self, from: data)
+        else { return nil }
+        print("[OpenMeteo] Cache hit (\(Int(Date().timeIntervalSince((try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date ?? Date()) / 60))min old) for \(latitude),\(longitude)")
+        return payload.toBundle()
+    }
+
+    private func writeDiskCache(data: Data, latitude: Double, longitude: Double) {
+        let url = cacheURL(latitude: latitude, longitude: longitude)
+        try? data.write(to: url, options: .atomic)
+    }
+
+    // MARK: - Response model
 
     private struct Payload: Decodable {
         let current: Current
