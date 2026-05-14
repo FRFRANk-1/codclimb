@@ -42,8 +42,9 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 
-# Local tooling
-.claude/settings.local.json
+# Local tooling — never push these
+.claude/
+CLAUDE.md
 .idea/
 .vscode/
 *.swp
