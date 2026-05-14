@@ -29,6 +29,8 @@ struct ProfileView: View {
                     if isGuest {
                         guestBanner
                     } else {
+                        climbingStylesSection
+                        achievementBadgesSection
                         bioSection
                         savedCragsSection
                         recentReportsSection
@@ -152,10 +154,13 @@ struct ProfileView: View {
     // MARK: - Stats
 
     private var statsRow: some View {
-        HStack(spacing: 0) {
+        let savedCount = ((try? CragRepository.loadAll()) ?? []).filter { favorites.isFavorite($0) }.count
+        return HStack(spacing: 0) {
             ProfileStatCell(value: "\(profile?.reportCount ?? 0)", label: "Reports")
             Divider().frame(height: 40)
             ProfileStatCell(value: "\(profile?.totalThumbsUp ?? 0)", label: "Thumbs-up")
+            Divider().frame(height: 40)
+            ProfileStatCell(value: "\(savedCount)", label: "Saved")
         }
         .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, 16)
@@ -208,6 +213,164 @@ struct ProfileView: View {
             .foregroundStyle(Theme.Palette.accent)
         }
         .padding(24)
+    }
+
+    // MARK: - Climbing styles
+
+    private var climbingStylesSection: some View {
+        let styles = profile?.climbingStyles ?? []
+        let allStyles = ["Sport", "Trad", "Boulder", "Alpine"]
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Climbing Styles")
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+                Spacer()
+                Text("tap to select")
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            HStack(spacing: 8) {
+                ForEach(allStyles, id: \.self) { style in
+                    let selected = styles.contains(style)
+                    Button {
+                        var updated = styles
+                        if selected { updated.removeAll { $0 == style } }
+                        else { updated.append(style) }
+                        Task { await profileStore.saveClimbingStyles(updated) }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: styleIcon(style))
+                                .font(.system(size: 11, weight: .medium))
+                            Text(style)
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .foregroundStyle(selected ? .white : Theme.Palette.textSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(
+                            Capsule()
+                                .fill(selected ? Theme.Palette.accent : Theme.Palette.surface)
+                                .overlay(Capsule().stroke(
+                                    selected ? Color.clear : Theme.Palette.divider,
+                                    lineWidth: 1
+                                ))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .animation(.easeInOut(duration: 0.15), value: selected)
+                }
+            }
+        }
+        .padding(Theme.Metrics.cardPadding)
+    }
+
+    private func styleIcon(_ style: String) -> String {
+        switch style {
+        case "Sport":   return "bolt.circle"
+        case "Trad":    return "hexagon"
+        case "Boulder": return "square.stack.3d.up"
+        case "Alpine":  return "mountain.2"
+        default:        return "figure.hiking"
+        }
+    }
+
+    // MARK: - Achievement badges
+
+    private var achievementBadgesSection: some View {
+        let count = profile?.reportCount ?? 0
+        let thumbs = profile?.totalThumbsUp ?? 0
+
+        let badges: [(emoji: String, title: String, desc: String, earned: Bool)] = [
+            ("🧗", "First Ascent",     "Posted your first condition report",   count >= 1),
+            ("🔍", "Route Scout",      "Posted 5 reports",                     count >= 5),
+            ("🏕️", "Crag Regular",    "Posted 10 reports",                    count >= 10),
+            ("💪", "Trail Crusher",    "Posted 25 reports",                    count >= 25),
+            ("👍", "Trusted Source",   "Received 10 thumbs-up",                thumbs >= 10),
+            ("⭐", "Community Star",   "Received 50 thumbs-up",                thumbs >= 50),
+        ]
+
+        let earned = badges.filter(\.earned)
+        let next   = badges.first(where: { !$0.earned })
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Achievements")
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Palette.textPrimary)
+
+            if earned.isEmpty {
+                // Empty state — prompts action
+                VStack(spacing: 8) {
+                    Text("🧗")
+                        .font(.system(size: 36))
+                    Text("Post your first condition report to earn your first badge")
+                        .font(Theme.Typography.callout)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Theme.Palette.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.Palette.divider, lineWidth: 1))
+            } else {
+                // Earned badges row
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(earned, id: \.title) { badge in
+                            VStack(spacing: 6) {
+                                Text(badge.emoji)
+                                    .font(.system(size: 28))
+                                    .frame(width: 56, height: 56)
+                                    .background(Theme.Palette.accentMuted)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    .overlay(RoundedRectangle(cornerRadius: 14)
+                                        .stroke(Theme.Palette.accent.opacity(0.3), lineWidth: 1))
+                                Text(badge.title)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(Theme.Palette.textSecondary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                            }
+                            .frame(width: 68)
+                        }
+
+                        // Locked next badge preview
+                        if let next = next {
+                            VStack(spacing: 6) {
+                                ZStack {
+                                    Text(next.emoji)
+                                        .font(.system(size: 28))
+                                    Color.black.opacity(0.45)
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(.white)
+                                }
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                                .overlay(RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Theme.Palette.divider, lineWidth: 1))
+
+                                Text(next.title)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(Theme.Palette.textTertiary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                            }
+                            .frame(width: 68)
+                        }
+                    }
+                }
+
+                // Next badge progress hint
+                if let next = next {
+                    Text("Next: \(next.desc)")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                }
+            }
+        }
+        .padding(Theme.Metrics.cardPadding)
     }
 
     // MARK: - Sign out
@@ -283,15 +446,24 @@ struct ProfileView: View {
             .padding(.horizontal, Theme.Metrics.cardPadding)
 
             if saved.isEmpty {
-                HStack(spacing: 12) {
-                    Image(systemName: "bookmark")
-                        .font(.system(size: 18))
+                VStack(spacing: 10) {
+                    Image(systemName: "bookmark.slash")
+                        .font(.system(size: 28))
                         .foregroundStyle(Theme.Palette.textTertiary)
-                    Text("Tap the bookmark on any crag to save it here.")
-                        .font(Theme.Typography.callout)
+                    Text("No saved crags yet")
+                        .font(Theme.Typography.callout).fontWeight(.medium)
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                    Text("Tap the bookmark on any crag to save it here for quick access and trip planning.")
+                        .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Palette.textTertiary)
+                        .multilineTextAlignment(.center)
                 }
-                .padding(Theme.Metrics.cardPadding)
+                .frame(maxWidth: .infinity)
+                .padding(20)
+                .background(Theme.Palette.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.Palette.divider, lineWidth: 1))
+                .padding(.horizontal, Theme.Metrics.cardPadding)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
@@ -321,10 +493,24 @@ struct ProfileView: View {
                 .padding(.horizontal, Theme.Metrics.cardPadding)
 
             if myReports.isEmpty {
-                Text("No reports posted yet.")
-                    .font(Theme.Typography.callout)
-                    .foregroundStyle(Theme.Palette.textTertiary)
-                    .padding(.horizontal, Theme.Metrics.cardPadding)
+                VStack(spacing: 10) {
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                    Text("No reports yet")
+                        .font(Theme.Typography.callout).fontWeight(.medium)
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                    Text("Head to a crag and post your first condition report — earn your First Ascent badge.")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(20)
+                .background(Theme.Palette.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.Palette.divider, lineWidth: 1))
+                .padding(.horizontal, Theme.Metrics.cardPadding)
             } else {
                 let allCrags = (try? CragRepository.loadAll()) ?? []
                 ForEach(Array(myReports)) { report in

@@ -14,6 +14,7 @@ struct UserProfile: Identifiable, Codable {
     var joinDate: Date
     var reportCount: Int
     var totalThumbsUp: Int
+    var climbingStyles: [String] = []   // e.g. ["Sport", "Trad"]
 
     init(
         id: String,
@@ -22,7 +23,8 @@ struct UserProfile: Identifiable, Codable {
         avatarURL: String? = nil,
         joinDate: Date = .now,
         reportCount: Int = 0,
-        totalThumbsUp: Int = 0
+        totalThumbsUp: Int = 0,
+        climbingStyles: [String] = []
     ) {
         self.id = id
         self.displayName = displayName
@@ -31,6 +33,7 @@ struct UserProfile: Identifiable, Codable {
         self.joinDate = joinDate
         self.reportCount = reportCount
         self.totalThumbsUp = totalThumbsUp
+        self.climbingStyles = climbingStyles
     }
 
     // MARK: - Derived
@@ -183,7 +186,8 @@ final class UserProfileStore: ObservableObject {
             avatarURL: dict["avatarURL"] as? String,
             joinDate: (dict["joinDate"] as? Timestamp)?.dateValue() ?? .now,
             reportCount: dict["reportCount"] as? Int ?? 0,
-            totalThumbsUp: dict["totalThumbsUp"] as? Int ?? 0
+            totalThumbsUp: dict["totalThumbsUp"] as? Int ?? 0,
+            climbingStyles: dict["climbingStyles"] as? [String] ?? []
         )
     }
 
@@ -194,8 +198,24 @@ final class UserProfileStore: ObservableObject {
             "joinDate": Timestamp(date: p.joinDate),
             "reportCount": p.reportCount,
             "totalThumbsUp": p.totalThumbsUp,
+            "climbingStyles": p.climbingStyles,
         ]
         if let url = p.avatarURL { d["avatarURL"] = url }
         return d
+    }
+
+    // MARK: - Save climbing styles
+
+    func saveClimbingStyles(_ styles: [String]) async {
+        let uid = firebase.currentUserID
+        guard !uid.isEmpty else { return }
+        do {
+            try await db.collection("userProfiles")
+                .document(uid)
+                .setData(["climbingStyles": styles], merge: true)
+            currentProfile?.climbingStyles = styles
+        } catch {
+            print("[UserProfileStore] saveClimbingStyles error: \(error)")
+        }
     }
 }
