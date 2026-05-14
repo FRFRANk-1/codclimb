@@ -11,6 +11,9 @@
 		159CA6AF2FB4313200040E49 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 159CA6AE2FB4313200040E49 /* FirebaseAuth */; };
 		159CA6B12FB4313200040E49 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 159CA6B02FB4313200040E49 /* FirebaseFirestore */; };
 		159CA6B32FB4313200040E49 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 159CA6B22FB4313200040E49 /* FirebaseStorage */; };
+		15EF834B2FB55C3A0016B0F9 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 15EF834A2FB55C3A0016B0F9 /* GoogleSignIn */; };
+		15EF834D2FB55C3A0016B0F9 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 15EF834C2FB55C3A0016B0F9 /* GoogleSignInSwift */; };
+		15EF834F2FB55E850016B0F9 /* CragFilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EF834E2FB55E850016B0F9 /* CragFilterSheet.swift */; };
 		2B0000000000000000000001 /* CodClimbApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000001 /* CodClimbApp.swift */; };
 		2B0000000000000000000002 /* Crag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000002 /* Crag.swift */; };
 		2B0000000000000000000003 /* WeatherSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000003 /* WeatherSnapshot.swift */; };
@@ -54,6 +57,7 @@
 
 /* Begin PBXFileReference section */
 		159CA6AB2FB4302000040E49 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		15EF834E2FB55E850016B0F9 /* CragFilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CragFilterSheet.swift; sourceTree = "<group>"; };
 		1A0000000000000000000001 /* CodClimbApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodClimbApp.swift; sourceTree = "<group>"; };
 		1A0000000000000000000002 /* Crag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Crag.swift; sourceTree = "<group>"; };
 		1A0000000000000000000003 /* WeatherSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSnapshot.swift; sourceTree = "<group>"; };
@@ -72,6 +76,14 @@
 		1A0000000000000000000016 /* crags.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = crags.json; sourceTree = "<group>"; };
 		1A0000000000000000000020 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		1A0000000000000000000021 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		1A0000000000000000000022 /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000023 /* NotificationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000024 /* CragAlertSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CragAlertSheet.swift; sourceTree = "<group>"; };
+		1A0000000000000000000025 /* DailyForecastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyForecastView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000026 /* ConditionReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditionReport.swift; sourceTree = "<group>"; };
+		1A0000000000000000000027 /* CommunityFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityFeedView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000028 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000029 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000030 /* FirebaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseService.swift; sourceTree = "<group>"; };
 		1A0000000000000000000031 /* UnitFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitFormatter.swift; sourceTree = "<group>"; };
 		1A0000000000000000000032 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -85,14 +97,6 @@
 		1A000000000000000000003A /* LegalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalView.swift; sourceTree = "<group>"; };
 		1A000000000000000000003B /* CragMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CragMapView.swift; sourceTree = "<group>"; };
 		1A000000000000000000003C /* UnsplashService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsplashService.swift; sourceTree = "<group>"; };
-		1A0000000000000000000022 /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000023 /* NotificationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000024 /* CragAlertSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CragAlertSheet.swift; sourceTree = "<group>"; };
-		1A0000000000000000000025 /* DailyForecastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyForecastView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000026 /* ConditionReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditionReport.swift; sourceTree = "<group>"; };
-		1A0000000000000000000027 /* CommunityFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityFeedView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000028 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000029 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000099 /* CodClimb.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodClimb.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -101,7 +105,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				15EF834D2FB55C3A0016B0F9 /* GoogleSignInSwift in Frameworks */,
 				159CA6AF2FB4313200040E49 /* FirebaseAuth in Frameworks */,
+				15EF834B2FB55C3A0016B0F9 /* GoogleSignIn in Frameworks */,
 				159CA6B12FB4313200040E49 /* FirebaseFirestore in Frameworks */,
 				159CA6B32FB4313200040E49 /* FirebaseStorage in Frameworks */,
 			);
@@ -174,6 +180,7 @@
 		3C0000000000000000000022 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				15EF834E2FB55E850016B0F9 /* CragFilterSheet.swift */,
 				1A0000000000000000000009 /* CragListView.swift */,
 				1A0000000000000000000010 /* CragDetailView.swift */,
 				1A0000000000000000000022 /* FavoritesView.swift */,
@@ -267,6 +274,7 @@
 			mainGroup = 3C0000000000000000000010;
 			packageReferences = (
 				159CA6AD2FB4313200040E49 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				15EF83492FB55C3A0016B0F9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			productRefGroup = 3C0000000000000000000012 /* Products */;
 			projectDirPath = "";
@@ -307,6 +315,7 @@
 				2B0000000000000000000010 /* CragDetailView.swift in Sources */,
 				2B0000000000000000000011 /* ScoreBadgeView.swift in Sources */,
 				2B0000000000000000000012 /* StatTile.swift in Sources */,
+				15EF834F2FB55E850016B0F9 /* CragFilterSheet.swift in Sources */,
 				2B0000000000000000000013 /* HourlyForecastView.swift in Sources */,
 				2B0000000000000000000014 /* FactorRow.swift in Sources */,
 				2B0000000000000000000020 /* FavoritesStore.swift in Sources */,
@@ -345,13 +354,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D4G27562RV;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CodClimb/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -372,13 +378,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D4G27562RV;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CodClimb/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -543,6 +546,14 @@
 				minimumVersion = 12.13.0;
 			};
 		};
+		15EF83492FB55C3A0016B0F9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -560,6 +571,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 159CA6AD2FB4313200040E49 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseStorage;
+		};
+		15EF834A2FB55C3A0016B0F9 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 15EF83492FB55C3A0016B0F9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		15EF834C2FB55C3A0016B0F9 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 15EF83492FB55C3A0016B0F9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

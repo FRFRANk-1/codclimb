@@ -29,7 +29,8 @@ DerivedData/
 # Swift Package Manager
 .swiftpm/
 .build/
-Package.resolved
+# Note: do NOT ignore xcworkspace Package.resolved — Xcode Cloud requires it
+# Package.resolved   ← intentionally NOT ignored
 Packages/
 
 # CocoaPods (not used now, but in case)
