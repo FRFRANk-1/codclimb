@@ -1,5 +1,21 @@
 # CodClimb — Project Summary for AI Sessions
 
+## Git workflow (IMPORTANT — follow this every session)
+- **Always give commit/push commands for `dev` branch only**
+- Frank commits via VSCode terminal, merges dev→main manually via GitHub PR UI
+- Xcode Cloud watches `main` and auto-builds on every merge
+- **Never tell Frank to run `git pull origin main`** — this risks overwriting dev work
+- **Never tell Frank to push directly to `main`**
+- The only safe commands to give are:
+  ```bash
+  git add .
+  git commit -m "feat: description of what changed"
+  git push origin dev
+  ```
+- After pushing to dev, Frank goes to github.com/FRFRANk-1/codclimb → Pull requests → merges dev→main in the browser UI
+- GitHub repo: https://github.com/FRFRANk-1/codclimb (2 branches: main, dev)
+- Team ID: D4G27562RV (Apple Developer — Individual)
+
 ## What this app is
 CodClimb is an iOS climbing conditions app. It shows live weather-based climbability scores for 123 US crags, lets users post condition reports, save favorite crags, and plan weekend trips. Think "Strava meets Dark Sky for rock climbing."
 
