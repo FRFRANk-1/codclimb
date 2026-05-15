@@ -15,6 +15,8 @@ struct ProfileView: View {
     @State private var draftBio = ""
     @State private var showingSettings = false
     @State private var showingAuth = false
+    @State private var showingMyReports = false
+    @State private var showingMySaved = false
 
     private let firebase = FirebaseService.shared
     private var isGuest: Bool { firebase.isAnonymous }
@@ -72,6 +74,14 @@ struct ProfileView: View {
             BioEditorSheet(bio: $draftBio) { saved in
                 Task { await profileStore.saveProfile(displayName: username, bio: saved) }
             }
+        }
+        .sheet(isPresented: $showingMyReports) {
+            MyReportsSheet()
+                .environmentObject(reportStore)
+        }
+        .sheet(isPresented: $showingMySaved) {
+            MySavedCragsSheet()
+                .environmentObject(favorites)
         }
     }
 
@@ -156,27 +166,42 @@ struct ProfileView: View {
     private var statsRow: some View {
         let savedCount = ((try? CragRepository.loadAll()) ?? []).filter { favorites.isFavorite($0) }.count
         return HStack(spacing: 0) {
-            ProfileStatCell(value: "\(profile?.reportCount ?? 0)", label: "Reports")
+            // Reports — tappable
+            Button { showingMyReports = true } label: {
+                ProfileStatCell(
+                    value: "\(profile?.reportCount ?? 0)",
+                    label: "Reports",
+                    tappable: true
+                )
+            }
+            .buttonStyle(.plain)
+
             Divider().frame(height: 40)
-            ProfileStatCell(value: "\(profile?.totalThumbsUp ?? 0)", label: "Thumbs-up")
+
+            // Thumbs-up — display only (we don't store per-liker data)
+            ProfileStatCell(
+                value: "\(profile?.totalThumbsUp ?? 0)",
+                label: "Thumbs-up",
+                tappable: false
+            )
+
             Divider().frame(height: 40)
-            ProfileStatCell(value: "\(savedCount)", label: "Saved")
+
+            // Saved — tappable
+            Button { showingMySaved = true } label: {
+                ProfileStatCell(
+                    value: "\(savedCount)",
+                    label: "Saved",
+                    tappable: true
+                )
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, Theme.Metrics.cardPadding)
         .padding(.vertical, 16)
         .background(Theme.Palette.surface)
-        .overlay(
-            Rectangle()
-                .fill(Theme.Palette.divider)
-                .frame(height: 1),
-            alignment: .top
-        )
-        .overlay(
-            Rectangle()
-                .fill(Theme.Palette.divider)
-                .frame(height: 1),
-            alignment: .bottom
-        )
+        .overlay(Rectangle().fill(Theme.Palette.divider).frame(height: 1), alignment: .top)
+        .overlay(Rectangle().fill(Theme.Palette.divider).frame(height: 1), alignment: .bottom)
     }
 
     // MARK: - Guest banner
@@ -514,8 +539,9 @@ struct ProfileView: View {
             } else {
                 let allCrags = (try? CragRepository.loadAll()) ?? []
                 ForEach(Array(myReports)) { report in
-                    let cragName = allCrags.first(where: { $0.id == report.cragID })?.name
-                    MiniReportRow(report: report, cragName: cragName)
+                    let crag = allCrags.first(where: { $0.id == report.cragID })
+                    TappableMiniReportRow(report: report, crag: crag)
+                        .environmentObject(reportStore)
                         .padding(.horizontal, Theme.Metrics.cardPadding)
                 }
             }
@@ -824,16 +850,195 @@ private struct BioEditorSheet: View {
 private struct ProfileStatCell: View {
     let value: String
     let label: String
+    var tappable: Bool = false
 
     var body: some View {
         VStack(spacing: 2) {
             Text(value)
                 .font(Theme.Typography.headline).monospacedDigit()
                 .foregroundStyle(Theme.Palette.textPrimary)
-            Text(label)
-                .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.Palette.textTertiary)
+            HStack(spacing: 2) {
+                Text(label)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(tappable ? Theme.Palette.accent : Theme.Palette.textTertiary)
+                if tappable {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.accent)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Tappable mini report row (profile recent-reports list)
+
+private struct TappableMiniReportRow: View {
+    let report: ConditionReport
+    let crag: Crag?
+    @EnvironmentObject private var reportStore: ConditionReportStore
+    @EnvironmentObject private var profileStore: UserProfileStore
+    @State private var showingDetail = false
+
+    var body: some View {
+        Button { showingDetail = true } label: {
+            HStack(spacing: 10) {
+                Text(report.rockCondition.emoji)
+                    .font(.system(size: 18))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(crag?.name ?? "Unknown crag")
+                        .font(Theme.Typography.callout).fontWeight(.medium)
+                        .foregroundStyle(Theme.Palette.textPrimary)
+                    Text(report.relativeTime)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showingDetail) {
+            ReportDetailSheet(report: report, crag: crag)
+                .environmentObject(profileStore)
+                .environmentObject(reportStore)
+        }
+    }
+}
+
+// MARK: - My Reports sheet
+
+private struct MyReportsSheet: View {
+    @EnvironmentObject private var reportStore: ConditionReportStore
+    @EnvironmentObject private var profileStore: UserProfileStore
+    @AppStorage("codclimb.username") private var username: String = ""
+    @Environment(\.dismiss) private var dismiss
+
+    private var myReports: [ConditionReport] {
+        reportStore.reportsByID.values
+            .filter { $0.author == username }
+            .sorted { $0.date > $1.date }
+    }
+    private var allCrags: [Crag] { (try? CragRepository.loadAll()) ?? [] }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if myReports.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "text.bubble")
+                            .font(.system(size: 48))
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        Text("No reports yet")
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Palette.textPrimary)
+                        Text("Post your first condition report from any crag detail page.")
+                            .font(Theme.Typography.callout)
+                            .foregroundStyle(Theme.Palette.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(32)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(myReports) { report in
+                                let crag = allCrags.first(where: { $0.id == report.cragID })
+                                ReportCard(report: report, crag: crag)
+                                    .environmentObject(reportStore)
+                            }
+                        }
+                        .padding(Theme.Metrics.cardPadding)
+                    }
+                }
+            }
+            .background(Theme.Palette.background.ignoresSafeArea())
+            .navigationTitle("My Reports")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }.tint(Theme.Palette.accent)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - My Saved Crags sheet
+
+private struct MySavedCragsSheet: View {
+    @EnvironmentObject private var favorites: FavoritesStore
+    @Environment(\.dismiss) private var dismiss
+
+    private var savedCrags: [Crag] {
+        let all = (try? CragRepository.loadAll()) ?? []
+        return all.filter { favorites.isFavorite($0) }
+    }
+
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if savedCrags.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "bookmark.slash")
+                            .font(.system(size: 48))
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        Text("No saved crags yet")
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(Theme.Palette.textPrimary)
+                        Text("Tap the bookmark icon on any crag to save it here.")
+                            .font(Theme.Typography.callout)
+                            .foregroundStyle(Theme.Palette.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(32)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(savedCrags) { crag in
+                                NavigationLink {
+                                    CragDetailView(crag: crag, preloaded: nil)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        CragHeroPhotoView(crag: crag, height: 100)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(crag.name)
+                                                .font(Theme.Typography.callout).fontWeight(.semibold)
+                                                .foregroundStyle(Theme.Palette.textPrimary)
+                                                .lineLimit(1)
+                                            Text(crag.region)
+                                                .font(Theme.Typography.caption)
+                                                .foregroundStyle(Theme.Palette.textSecondary)
+                                                .lineLimit(1)
+                                        }
+                                        .padding(10)
+                                    }
+                                    .background(Theme.Palette.surface)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .overlay(RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Theme.Palette.divider, lineWidth: 1))
+                                }
+                            }
+                        }
+                        .padding(Theme.Metrics.cardPadding)
+                    }
+                }
+            }
+            .background(Theme.Palette.background.ignoresSafeArea())
+            .navigationTitle("Saved Crags (\(savedCrags.count))")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }.tint(Theme.Palette.accent)
+                }
+            }
+        }
     }
 }

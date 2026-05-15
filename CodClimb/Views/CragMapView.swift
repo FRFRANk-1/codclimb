@@ -15,7 +15,7 @@ final class CragMapViewModel: ObservableObject {
     @Published private(set) var snapshots: [String: CragListViewModel.CragSnapshot] = [:]
 
     private let client = OpenMeteoClient()
-    private let scorer = ScoringService()
+    private let scorer = ScoringService(weights: .current)
     private var fetching: Set<String> = []
 
     func snapshot(for crag: Crag) -> CragListViewModel.CragSnapshot? {
@@ -173,7 +173,7 @@ struct CragMapView: View {
                         .shadow(color: .black.opacity(0.14), radius: 6, x: 0, y: 2)
                     }
                     .padding(.trailing, 14)
-                    .padding(.bottom, 84)
+                    .padding(.bottom, 62)
 
                     // (Loading pill removed — map no longer pre-fetches weather)
                 }

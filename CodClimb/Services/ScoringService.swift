@@ -1,13 +1,48 @@
 import Foundation
 
+// MARK: - Cloud sky preference (persisted in UserDefaults)
+
+enum CloudPreference: String, CaseIterable {
+    case sun    = "sun"    // ☀ I want blue sky
+    case either = "either" // neutral — default
+    case shade  = "shade"  // ☁ I prefer overcast (no sunburn, cool rock)
+
+    static let key = "codclimb.cloudPref"
+
+    var label: String {
+        switch self {
+        case .sun:    return "☀ Sun"
+        case .either: return "Either"
+        case .shade:  return "☁ Shade"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .sun:    return "Clear skies score higher. Overcast is penalised."
+        case .either: return "Cloud cover is scored neutrally."
+        case .shade:  return "Overcast scores higher. Great for granite in summer."
+        }
+    }
+}
+
+// MARK: - Scoring weights
+
 struct ScoringWeights {
     var temperature: Double = 0.30
-    var dryness: Double = 0.25   // was 0.30 — redistributed 5% to cloudCover
+    var dryness: Double = 0.25
     var humidity: Double = 0.20
     var wind: Double = 0.15
-    var cloudCover: Double = 0.10  // was 0.05 — cloud matters more than just scenery
+    var cloudCover: Double = 0.10
+    var cloudPreference: CloudPreference = .either
 
-    static let `default` = ScoringWeights()
+    /// Reads the user's saved cloud preference from UserDefaults.
+    /// Call this at score-time so the preference is always current.
+    static var current: ScoringWeights {
+        let raw = UserDefaults.standard.string(forKey: CloudPreference.key) ?? ""
+        let pref = CloudPreference(rawValue: raw) ?? .either
+        return ScoringWeights(cloudPreference: pref)
+    }
 }
 
 struct ScoringService {
@@ -96,28 +131,48 @@ struct ScoringService {
     }
 
     private func cloudScore(_ pct: Double, tempF: Double) -> Double {
-        if tempF > 75 {
-            // Hot day: clouds = welcome shade. More cloud = better (up to a point).
-            return min(1.0, 0.55 + pct / 220.0)
-        } else if tempF < 40 {
-            // Cold day: overcast makes it bleaker and colder.
-            return max(0.0, 1.0 - pct / 100.0)
-        } else {
-            // Normal range: clear sky = best, full overcast = mild penalty.
-            // 0 % → 1.00 · 50 % → 0.87 · 100 % → 0.65
-            return 1.0 - (pct / 285.0)
+        switch weights.cloudPreference {
+
+        case .sun:
+            // Wants blue sky — penalise overcast strongly.
+            // 0 % → 1.00 · 50 % → 0.69 · 100 % → 0.38
+            if tempF > 75 { return min(1.0, 0.40 + pct / 200.0) } // hot: clouds still help a bit
+            return max(0.0, 1.0 - (pct / 160.0))
+
+        case .shade:
+            // Wants overcast — cool rock, no sunburn.
+            // Hot day already rewards clouds, so leave that alone.
+            if tempF > 75 { return min(1.0, 0.55 + pct / 220.0) }
+            if tempF < 40 { return max(0.0, 1.0 - pct / 100.0) }
+            // Normal temp: flip the curve — 0 % → 0.62 · 100 % → 1.00
+            return min(1.0, 0.62 + (pct / 267.0))
+
+        case .either:
+            // Neutral — moderate penalty for heavy overcast, real range 0–100.
+            // 0 % → 1.00 · 50 % → 0.73 · 100 % → 0.46
+            if tempF > 75 { return min(1.0, 0.55 + pct / 220.0) }
+            if tempF < 40 { return max(0.0, 1.0 - pct / 100.0) }
+            return max(0.0, 1.0 - (pct / 185.0))
         }
     }
 
     private func cloudBlurb(_ pct: Double, tempF: Double) -> String {
+        let condition: String
         if tempF > 75 {
-            return pct > 50 ? "Clouds keeping it cool — good" : "Clear sky, hot rock"
+            condition = pct > 50 ? "Clouds keeping it cool" : "Clear sky, hot rock"
+        } else {
+            switch pct {
+            case ..<20:   condition = "Clear skies"
+            case 20..<50: condition = "Partly cloudy"
+            case 50..<80: condition = "Mostly cloudy"
+            default:      condition = "Overcast"
+            }
         }
-        switch pct {
-        case ..<20:   return "Clear skies"
-        case 20..<50: return "Partly cloudy"
-        case 50..<80: return "Mostly cloudy"
-        default:      return "Overcast"
+        // Append preference label so users see why their score may differ
+        switch weights.cloudPreference {
+        case .sun:   return "\(condition) · scored for ☀ sun preference"
+        case .shade: return "\(condition) · scored for ☁ shade preference"
+        case .either: return condition
         }
     }
 

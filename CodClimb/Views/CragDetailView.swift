@@ -12,7 +12,7 @@ final class CragDetailViewModel: ObservableObject {
     @Published private(set) var error: String?
 
     private let client = OpenMeteoClient()
-    private let scorer = ScoringService()
+    private let scorer = ScoringService(weights: .current)
 
     func seed(_ snap: CragListViewModel.CragSnapshot?) {
         guard let snap else { return }
@@ -300,20 +300,36 @@ struct CragDetailView: View {
     }
 
     private func statsGrid(snapshot: WeatherSnapshot) -> some View {
+        let tf = DateFormatter()
+        tf.dateFormat = "h:mm a"
+        let timeLabel = tf.string(from: snapshot.time)
+
         let columns = [GridItem(.flexible()), GridItem(.flexible())]
-        return LazyVGrid(columns: columns, spacing: 10) {
-            StatTile(icon: "thermometer.medium", label: "Temperature",
-                     value: UnitFormatter.tempShort(snapshot.temperatureF),
-                     trailing: UnitFormatter.tempUnit)
-            StatTile(icon: "humidity.fill", label: "Humidity",
-                     value: "\(Int(snapshot.humidityPct.rounded()))", trailing: "%")
-            StatTile(icon: "wind", label: "Wind",
-                     value: UnitFormatter.windShort(snapshot.windMph),
-                     trailing: UnitFormatter.windUnit)
-            StatTile(icon: "cloud.fill", label: "Cloud cover",
-                     value: "\(Int(snapshot.cloudCoverPct.rounded()))", trailing: "%")
+        return VStack(alignment: .leading, spacing: 8) {
+            // "Live as of HH:MM" chip — tells user the data is real-time
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(Theme.Palette.send)
+                    .frame(width: 6, height: 6)
+                Text("Live conditions · as of \(timeLabel)")
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+            }
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                StatTile(icon: "thermometer.medium", label: "Temperature",
+                         value: UnitFormatter.tempShort(snapshot.temperatureF),
+                         trailing: UnitFormatter.tempUnit)
+                StatTile(icon: "humidity.fill", label: "Humidity",
+                         value: "\(Int(snapshot.humidityPct.rounded()))", trailing: "%")
+                StatTile(icon: "wind", label: "Wind",
+                         value: UnitFormatter.windShort(snapshot.windMph),
+                         trailing: UnitFormatter.windUnit)
+                StatTile(icon: "cloud.fill", label: "Cloud cover",
+                         value: "\(Int(snapshot.cloudCoverPct.rounded()))", trailing: "%")
+            }
+            .id(useMetric)
         }
-        .id(useMetric) // force redraw when units toggle
     }
 
     private func bestWindowCard(_ snap: WeatherSnapshot) -> some View {
