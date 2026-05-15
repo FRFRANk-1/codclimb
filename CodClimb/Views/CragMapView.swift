@@ -4,6 +4,7 @@
 
 import SwiftUI
 import MapKit
+import Combine
 
 // MARK: - ViewModel
 
@@ -190,9 +191,9 @@ struct CragMapView: View {
             }
         }
         .task { await viewModel.load() }
-        .onChange(of: locManager.lastLocation) { loc in
-            // Fires once the CLLocationManager async callback delivers coordinates
-            guard let loc else { return }
+        .onReceive(locManager.$lastLocation.compactMap { $0 }) { loc in
+            // Fires once CLLocationManager async callback delivers coordinates.
+            // onReceive needs no Equatable conformance on CLLocationCoordinate2D.
             withAnimation {
                 region = MKCoordinateRegion(
                     center: loc,
