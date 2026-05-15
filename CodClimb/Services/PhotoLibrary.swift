@@ -162,7 +162,7 @@ struct CragHeroPhotoView: View {
                 }
             }
             .padding(.horizontal, Theme.Metrics.cardPadding)
-            .padding(.bottom, 14)
+            .padding(.bottom, 26)
         }
         .frame(maxWidth: .infinity)
         .frame(height: height)

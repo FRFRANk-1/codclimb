@@ -8,6 +8,12 @@ struct SettingsView: View {
 
     @AppStorage("codclimb.useMetric") private var useMetric: Bool = false
     @AppStorage("codclimb.username") private var username: String = ""
+    @AppStorage(CloudPreference.key) private var cloudPrefRaw: String = CloudPreference.either.rawValue
+
+    private var cloudPreference: CloudPreference {
+        get { CloudPreference(rawValue: cloudPrefRaw) ?? .either }
+        set { cloudPrefRaw = newValue.rawValue }
+    }
 
     private var shortUID: String {
         let uid = FirebaseService.shared.currentUserID
@@ -43,6 +49,39 @@ struct SettingsView: View {
                     Text(useMetric
                          ? "Showing °C, km/h, and mm"
                          : "Showing °F, mph, and inches")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                }
+
+                // MARK: - Scoring preferences
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Sky preference", systemImage: "cloud.sun.fill")
+                            .foregroundStyle(Theme.Palette.textPrimary)
+
+                        // 3-way segmented picker
+                        Picker("Sky preference", selection: Binding(
+                            get: { cloudPreference },
+                            set: { cloudPrefRaw = $0.rawValue }
+                        )) {
+                            ForEach(CloudPreference.allCases, id: \.rawValue) { pref in
+                                Text(pref.label).tag(pref)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Text(cloudPreference.description)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Scoring")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                } footer: {
+                    Text("Affects the cloud cover score on every crag. Useful for hot summer crags where shade is welcome, or alpine routes where you want clear blue sky.")
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Palette.textTertiary)
                 }
@@ -201,8 +240,12 @@ struct SettingsView: View {
                         Label("Follow @codclimb", systemImage: "camera.fill")
                             .foregroundStyle(Theme.Palette.accent)
                     }
-                    Link(destination: URL(string: "mailto:rlifrank18@gmail.com?subject=CodClimb%20Bug%20Report&body=Describe%20the%20issue%3A%0A%0ADevice%3A%20%0AiOS%20version%3A%20%0AApp%20version%3A%20")!) {
+                    Link(destination: URL(string: "mailto:codclimbapp@outlook.com?subject=CodClimb%20Bug%20Report&body=Describe%20the%20issue%3A%0A%0ADevice%3A%20%0AiOS%20version%3A%20%0AApp%20version%3A%20")!) {
                         Label("Report a Bug", systemImage: "ladybug")
+                            .foregroundStyle(Theme.Palette.accent)
+                    }
+                    Link(destination: URL(string: "mailto:codclimbapp@outlook.com?subject=CodClimb%20Feature%20Request&body=I%27d%20love%20to%20see%20this%20in%20CodClimb%3A%0A%0A")!) {
+                        Label("Request a Feature", systemImage: "lightbulb")
                             .foregroundStyle(Theme.Palette.accent)
                     }
                     NavigationLink {
