@@ -153,7 +153,7 @@ final class FirebaseService: ObservableObject {
     }
 
     /// Upload JPEG data to Firebase Storage and return the public download URL string.
-    /// Path: reports/{reportID}.jpg
+    /// Path: reports/{reportID}.jpg  (legacy single-photo path)
     func uploadPhoto(_ imageData: Data, reportID: String) async throws -> String {
         let ref = Storage.storage()
             .reference()
@@ -163,6 +163,28 @@ final class FirebaseService: ObservableObject {
         _ = try await ref.putDataAsync(imageData, metadata: metadata)
         let url = try await ref.downloadURL()
         return url.absoluteString
+    }
+
+    /// Upload up to 4 photos concurrently and return their download URLs in order.
+    /// Path: reports/{reportID}_{index}.jpg
+    func uploadPhotos(_ dataItems: [Data], reportID: String) async throws -> [String] {
+        try await withThrowingTaskGroup(of: (Int, String).self) { group in
+            for (index, data) in dataItems.prefix(4).enumerated() {
+                group.addTask {
+                    let ref = Storage.storage()
+                        .reference()
+                        .child("reports/\(reportID)_\(index).jpg")
+                    let metadata = StorageMetadata()
+                    metadata.contentType = "image/jpeg"
+                    _ = try await ref.putDataAsync(data, metadata: metadata)
+                    let url = try await ref.downloadURL()
+                    return (index, url.absoluteString)
+                }
+            }
+            var results: [(Int, String)] = []
+            for try await pair in group { results.append(pair) }
+            return results.sorted { $0.0 < $1.0 }.map { $0.1 }
+        }
     }
 
     // MARK: - Serialisation helpers

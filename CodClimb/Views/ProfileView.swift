@@ -18,7 +18,7 @@ struct ProfileView: View {
     @State private var showingMyReports = false
     @State private var showingMySaved = false
 
-    private let firebase = FirebaseService.shared
+    @ObservedObject private var firebase: FirebaseService = .shared
     private var isGuest: Bool { firebase.isAnonymous }
     private var profile: UserProfile? { profileStore.currentProfile }
 

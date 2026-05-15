@@ -11,7 +11,15 @@ struct ConditionReport: Identifiable, Codable {
     var crowdLevel: CrowdLevel
     var bodyText: String
     var thumbsUp: Int
-    var photoURL: String?          // Firebase Storage download URL, nil if no photo
+    var photoURL: String?          // legacy single-photo field (backward compat)
+    var photoURLs: [String]        // up to 4 photos (new reports)
+
+    /// All photo URLs merged: new multi-photo field first, legacy field as fallback.
+    var allPhotoURLs: [String] {
+        if !photoURLs.isEmpty { return photoURLs }
+        if let single = photoURL { return [single] }
+        return []
+    }
 
     init(
         id: String = UUID().uuidString,
@@ -22,7 +30,8 @@ struct ConditionReport: Identifiable, Codable {
         crowdLevel: CrowdLevel,
         bodyText: String = "",
         thumbsUp: Int = 0,
-        photoURL: String? = nil
+        photoURL: String? = nil,
+        photoURLs: [String] = []
     ) {
         self.id = id
         self.cragID = cragID
@@ -33,6 +42,27 @@ struct ConditionReport: Identifiable, Codable {
         self.bodyText = bodyText
         self.thumbsUp = thumbsUp
         self.photoURL = photoURL
+        self.photoURLs = photoURLs
+    }
+
+    // MARK: - Custom Codable (graceful fallback for old Firestore docs missing photoURLs)
+
+    enum CodingKeys: String, CodingKey {
+        case id, cragID, author, date, rockCondition, crowdLevel, bodyText, thumbsUp, photoURL, photoURLs
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id            = try c.decode(String.self,           forKey: .id)
+        cragID        = try c.decode(String.self,           forKey: .cragID)
+        author        = try c.decode(String.self,           forKey: .author)
+        date          = try c.decode(Date.self,             forKey: .date)
+        rockCondition = try c.decode(RockCondition.self,    forKey: .rockCondition)
+        crowdLevel    = try c.decode(CrowdLevel.self,       forKey: .crowdLevel)
+        bodyText      = (try? c.decode(String.self,         forKey: .bodyText)) ?? ""
+        thumbsUp      = (try? c.decode(Int.self,            forKey: .thumbsUp)) ?? 0
+        photoURL      = try? c.decodeIfPresent(String.self, forKey: .photoURL)
+        photoURLs     = (try? c.decodeIfPresent([String].self, forKey: .photoURLs)) ?? []
     }
 
     // MARK: - Relative time label

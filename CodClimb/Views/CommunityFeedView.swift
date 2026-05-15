@@ -6,12 +6,12 @@ import PhotosUI
 
 struct CommunityFeedView: View {
     @EnvironmentObject private var reportStore: ConditionReportStore
+    @ObservedObject private var firebase: FirebaseService = .shared
     @State private var showingSubmitSheet = false
     @State private var showingAuth = false
     @State private var selectedCragID: String? = nil
     @State private var selectedRegion: String? = nil
 
-    private let firebase = FirebaseService.shared
     private var isGuest: Bool { firebase.isAnonymous }
 
     private var crags: [Crag] {
@@ -38,7 +38,7 @@ struct CommunityFeedView: View {
     }
 
     private var displayedReports: [ConditionReport] {
-        isGuest ? Array(filteredReports.prefix(3)) : filteredReports
+        isGuest ? Array(filteredReports.prefix(5)) : filteredReports
     }
 
     var body: some View {
@@ -61,7 +61,7 @@ struct CommunityFeedView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        showingSubmitSheet = true
+                        if isGuest { showingAuth = true } else { showingSubmitSheet = true }
                     } label: {
                         Image(systemName: "square.and.pencil")
                             .font(.system(size: 16, weight: .medium))
@@ -131,7 +131,7 @@ struct CommunityFeedView: View {
                 .foregroundStyle(Theme.Palette.textSecondary)
             Spacer()
             Button {
-                showingSubmitSheet = true
+                if isGuest { showingAuth = true } else { showingSubmitSheet = true }
             } label: {
                 Text("Add yours")
                     .font(Theme.Typography.caption)
@@ -161,7 +161,7 @@ struct CommunityFeedView: View {
                         .environmentObject(reportStore)
                 }
                 // Gate card for guests
-                if isGuest && filteredReports.count > 3 {
+                if isGuest && filteredReports.count > 5 {
                     signInGateCard
                 }
             }
@@ -177,7 +177,7 @@ struct CommunityFeedView: View {
                     .foregroundStyle(Theme.Palette.accent)
             }
             VStack(spacing: 6) {
-                Text("\(filteredReports.count - 3) more reports")
+                Text("\(filteredReports.count - 5) more reports")
                     .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Palette.textPrimary)
                 Text("Create a free account to see all community reports, post your own conditions, and get crag alerts.")
@@ -443,8 +443,10 @@ struct ReportCard: View {
     let crag: Crag?
     @EnvironmentObject private var reportStore: ConditionReportStore
     @EnvironmentObject private var profileStore: UserProfileStore
+    @ObservedObject private var firebase: FirebaseService = .shared
     @State private var didThumbsUp = false
     @State private var showingDetail = false
+    @State private var showingAuthForReaction = false
 
     var body: some View {
         Button {
@@ -484,26 +486,45 @@ struct ReportCard: View {
                         .lineLimit(6)
                 }
 
-                // Photo (if attached)
-                if let urlStr = report.photoURL, let url = URL(string: urlStr) {
+                // Photos (single or multi-photo grid)
+                let urls = report.allPhotoURLs
+                if urls.count == 1, let url = URL(string: urls[0]) {
                     AsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 200)
+                            image.resizable().scaledToFill()
+                                .frame(maxWidth: .infinity).frame(height: 200)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                        case .failure:
-                            EmptyView()
+                        case .failure: EmptyView()
                         case .empty:
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(Theme.Palette.surfaceElevated)
-                                .frame(height: 200)
+                                .fill(Theme.Palette.surfaceElevated).frame(height: 200)
                                 .overlay(ProgressView())
-                        @unknown default:
-                            EmptyView()
+                        @unknown default: EmptyView()
+                        }
+                    }
+                } else if urls.count > 1 {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(urls, id: \.self) { urlStr in
+                                if let url = URL(string: urlStr) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .success(let image):
+                                            image.resizable().scaledToFill()
+                                                .frame(width: 160, height: 160)
+                                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        case .failure: EmptyView()
+                                        case .empty:
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Theme.Palette.surfaceElevated)
+                                                .frame(width: 160, height: 160)
+                                                .overlay(ProgressView())
+                                        @unknown default: EmptyView()
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -520,12 +541,16 @@ struct ReportCard: View {
                             .foregroundStyle(Theme.Palette.textTertiary)
                     }
                     Spacer()
-                    // Thumbs up — inner button takes priority over outer tap
+                    // Thumbs up — gated behind sign-in
                     Button {
-                        guard !didThumbsUp else { return }
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-                            didThumbsUp = true
-                            reportStore.thumbsUp(report: report)
+                        if firebase.isAnonymous {
+                            showingAuthForReaction = true
+                        } else {
+                            guard !didThumbsUp else { return }
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                                didThumbsUp = true
+                                reportStore.thumbsUp(report: report)
+                            }
                         }
                     } label: {
                         HStack(spacing: 4) {
@@ -561,6 +586,10 @@ struct ReportCard: View {
             ReportDetailSheet(report: report, crag: crag)
                 .environmentObject(profileStore)
                 .environmentObject(reportStore)
+        }
+        .sheet(isPresented: $showingAuthForReaction) {
+            AuthView()
+                .environmentObject(profileStore)
         }
     }
 
@@ -836,16 +865,19 @@ struct SubmitReportView: View {
     @State private var crowdLevel: ConditionReport.CrowdLevel = .moderate
     @State private var bodyText: String = ""
     @State private var showingValidationAlert = false
+    @State private var showingAuth = false
 
-    // Photo picker
-    @State private var photoItem: PhotosPickerItem? = nil
-    @State private var photoData: Data? = nil
-    @State private var photoPreview: Image? = nil
+    // Multi-photo picker (max 4)
+    @State private var photoItems: [PhotosPickerItem] = []
+    @State private var photoDatas: [Data] = []
+    @State private var photoPreviews: [Image] = []
     @State private var isUploading = false
 
     private var isValid: Bool {
         selectedCrag != nil && !authorName.trimmingCharacters(in: .whitespaces).isEmpty
     }
+
+    private var isGuest: Bool { FirebaseService.shared.isAnonymous }
 
     var body: some View {
         NavigationStack {
@@ -905,59 +937,74 @@ struct SubmitReportView: View {
                     .lineLimit(5...10)
                 }
 
-                // Photo
-                Section("Photo (optional)") {
-                    PhotosPicker(
-                        selection: $photoItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        HStack(spacing: 12) {
-                            if let preview = photoPreview {
-                                preview
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 64, height: 64)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            } else {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Theme.Palette.surfaceElevated)
-                                    .frame(width: 64, height: 64)
-                                    .overlay(
-                                        Image(systemName: "camera.fill")
-                                            .foregroundStyle(Theme.Palette.textTertiary)
-                                    )
+                // Photos (up to 4)
+                Section {
+                    // Thumbnail row of selected photos
+                    if !photoPreviews.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(photoPreviews.indices, id: \.self) { i in
+                                    ZStack(alignment: .topTrailing) {
+                                        photoPreviews[i]
+                                            .resizable().scaledToFill()
+                                            .frame(width: 72, height: 72)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        Button {
+                                            photoPreviews.remove(at: i)
+                                            photoDatas.remove(at: i)
+                                            if i < photoItems.count { photoItems.remove(at: i) }
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 18))
+                                                .foregroundStyle(.white)
+                                                .background(Circle().fill(Color.black.opacity(0.5)))
+                                        }
+                                        .offset(x: 4, y: -4)
+                                    }
+                                }
                             }
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(photoPreview == nil ? "Add a photo" : "Photo selected")
-                                    .font(Theme.Typography.callout)
-                                    .foregroundStyle(Theme.Palette.textPrimary)
-                                Text("Show current conditions at the crag")
-                                    .font(Theme.Typography.caption)
-                                    .foregroundStyle(Theme.Palette.textTertiary)
+                            .padding(.vertical, 4)
+                        }
+                    }
+
+                    if photoPreviews.count < 4 {
+                        PhotosPicker(
+                            selection: $photoItems,
+                            maxSelectionCount: 4,
+                            matching: .images,
+                            photoLibrary: .shared()
+                        ) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Theme.Palette.accent)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(photoPreviews.isEmpty ? "Add photos" : "Add more photos")
+                                        .font(Theme.Typography.callout)
+                                        .foregroundStyle(Theme.Palette.textPrimary)
+                                    Text("\(photoPreviews.count)/4 selected · show conditions at the crag")
+                                        .font(Theme.Typography.caption)
+                                        .foregroundStyle(Theme.Palette.textTertiary)
+                                }
+                            }
+                        }
+                        .onChange(of: photoItems) { items in
+                            Task {
+                                var newDatas: [Data] = []
+                                var newPreviews: [Image] = []
+                                for item in items.prefix(4) {
+                                    guard let data = try? await item.loadTransferable(type: Data.self),
+                                          let ui = UIImage(data: data) else { continue }
+                                    newDatas.append(data)
+                                    newPreviews.append(Image(uiImage: ui))
+                                }
+                                photoDatas = newDatas
+                                photoPreviews = newPreviews
                             }
                         }
                     }
-                    .onChange(of: photoItem) { item in
-                        Task {
-                            guard let item,
-                                  let data = try? await item.loadTransferable(type: Data.self),
-                                  let uiImage = UIImage(data: data)
-                            else { return }
-                            photoData = data
-                            photoPreview = Image(uiImage: uiImage)
-                        }
-                    }
-                    if photoPreview != nil {
-                        Button(role: .destructive) {
-                            photoItem = nil
-                            photoData = nil
-                            photoPreview = nil
-                        } label: {
-                            Label("Remove photo", systemImage: "trash")
-                                .font(Theme.Typography.caption)
-                        }
-                    }
+                } header: {
+                    Text("Photos (up to 4)")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -1000,16 +1047,10 @@ struct SubmitReportView: View {
         defer { isUploading = false }
 
         let reportID = UUID().uuidString
-        var uploadedURL: String? = nil
 
-        // Upload photo if one was selected
-        if let data = photoData {
-            // Compress to max 1MB JPEG before uploading
-            let compressed = compressImage(data, maxBytes: 1_000_000)
-            uploadedURL = try? await FirebaseService.shared.uploadPhoto(
-                compressed, reportID: reportID
-            )
-        }
+        // Upload all photos concurrently (max 4, compressed to 1 MB each)
+        let compressed = photoDatas.map { compressImage($0, maxBytes: 1_000_000) }
+        let uploadedURLs = (try? await FirebaseService.shared.uploadPhotos(compressed, reportID: reportID)) ?? []
 
         let report = ConditionReport(
             id: reportID,
@@ -1018,7 +1059,7 @@ struct SubmitReportView: View {
             rockCondition: rockCondition,
             crowdLevel: crowdLevel,
             bodyText: bodyText.trimmingCharacters(in: .whitespacesAndNewlines),
-            photoURL: uploadedURL
+            photoURLs: uploadedURLs
         )
         reportStore.add(report)
 
