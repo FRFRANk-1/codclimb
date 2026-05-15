@@ -2,10 +2,10 @@ import Foundation
 
 struct ScoringWeights {
     var temperature: Double = 0.30
-    var dryness: Double = 0.30
+    var dryness: Double = 0.25   // was 0.30 — redistributed 5% to cloudCover
     var humidity: Double = 0.20
     var wind: Double = 0.15
-    var cloudCover: Double = 0.05
+    var cloudCover: Double = 0.10  // was 0.05 — cloud matters more than just scenery
 
     static let `default` = ScoringWeights()
 }
@@ -34,7 +34,7 @@ struct ScoringService {
             .init(name: "Wind", score: windScore, weight: weights.wind,
                   detail: "\(Int(bundle.current.windMph.rounded())) mph · \(windBlurb(bundle.current.windMph))"),
             .init(name: "Cloud cover", score: cloudScore, weight: weights.cloudCover,
-                  detail: "\(Int(bundle.current.cloudCoverPct.rounded()))%")
+                  detail: "\(Int(bundle.current.cloudCoverPct.rounded()))% · \(cloudBlurb(bundle.current.cloudCoverPct, tempF: bundle.current.temperatureF))")
         ]
 
         let weighted = factors.reduce(0.0) { $0 + $1.score * $1.weight }
@@ -59,10 +59,17 @@ struct ScoringService {
     }
 
     private func temperatureScore(_ f: Double) -> Double {
-        let ideal = 50.0
-        let spread = 25.0
-        let dx = (f - ideal) / spread
-        return max(0, min(1, 1 - dx * dx))
+        // Sweet spot: 55–68 °F (13–20 °C) — ideal friction + comfort
+        // Scores fall off smoothly outside that range.
+        switch f {
+        case ..<28:        return 0.0
+        case 28..<45:      return 0.10 + (f - 28) / 17 * 0.45   // 0.10 → 0.55
+        case 45..<55:      return 0.55 + (f - 45) / 10 * 0.35   // 0.55 → 0.90
+        case 55..<68:      return 1.00                            // perfect zone
+        case 68..<78:      return 1.00 - (f - 68) / 10 * 0.30   // 1.00 → 0.70
+        case 78..<90:      return 0.70 - (f - 78) / 12 * 0.40   // 0.70 → 0.30
+        default:           return 0.10
+        }
     }
 
     private func drynessScore(hours: Double?) -> Double {
@@ -89,19 +96,40 @@ struct ScoringService {
     }
 
     private func cloudScore(_ pct: Double, tempF: Double) -> Double {
-        if tempF > 75 { return min(1, pct / 100 + 0.3) }
-        if tempF < 35 { return max(0, 1 - pct / 200) }
-        return 0.85
+        if tempF > 75 {
+            // Hot day: clouds = welcome shade. More cloud = better (up to a point).
+            return min(1.0, 0.55 + pct / 220.0)
+        } else if tempF < 40 {
+            // Cold day: overcast makes it bleaker and colder.
+            return max(0.0, 1.0 - pct / 100.0)
+        } else {
+            // Normal range: clear sky = best, full overcast = mild penalty.
+            // 0 % → 1.00 · 50 % → 0.87 · 100 % → 0.65
+            return 1.0 - (pct / 285.0)
+        }
+    }
+
+    private func cloudBlurb(_ pct: Double, tempF: Double) -> String {
+        if tempF > 75 {
+            return pct > 50 ? "Clouds keeping it cool — good" : "Clear sky, hot rock"
+        }
+        switch pct {
+        case ..<20:   return "Clear skies"
+        case 20..<50: return "Partly cloudy"
+        case 50..<80: return "Mostly cloudy"
+        default:      return "Overcast"
+        }
     }
 
     private func tempBlurb(_ f: Double) -> String {
         switch f {
-        case ..<25: return "Bitter cold — fingers will hate you"
-        case 25..<40: return "Crisp, sticky friction"
-        case 40..<60: return "Prime conditions"
-        case 60..<72: return "Comfortable"
-        case 72..<82: return "Warm, watch the friction"
-        default: return "Too hot to send hard"
+        case ..<28:    return "Dangerous cold"
+        case 28..<45:  return "Cold — gloves between burns"
+        case 45..<55:  return "Chilly but climbable"
+        case 55..<68:  return "Sweet spot — prime friction"
+        case 68..<78:  return "Warm, friction softening"
+        case 78..<88:  return "Hot — chalk fast"
+        default:       return "Too hot to send hard"
         }
     }
 

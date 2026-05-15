@@ -162,24 +162,17 @@ struct CragMapView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .shadow(color: .black.opacity(0.14), radius: 6, x: 0, y: 2)
 
-                        // User location
+                        // User location — tap fires the permission + location request;
+                        // the map moves via onChange when the callback delivers coordinates.
                         MapControlButton(icon: "location.fill") {
                             locManager.requestLocation()
-                            if let loc = locManager.lastLocation {
-                                withAnimation {
-                                    region = MKCoordinateRegion(
-                                        center: loc,
-                                        span: MKCoordinateSpan(latitudeDelta: 2, longitudeDelta: 2)
-                                    )
-                                }
-                            }
                         }
                         .background(Theme.Palette.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .shadow(color: .black.opacity(0.14), radius: 6, x: 0, y: 2)
                     }
                     .padding(.trailing, 14)
-                    .padding(.bottom, 100)
+                    .padding(.bottom, 84)
 
                     // (Loading pill removed — map no longer pre-fetches weather)
                 }
@@ -197,6 +190,16 @@ struct CragMapView: View {
             }
         }
         .task { await viewModel.load() }
+        .onChange(of: locManager.lastLocation) { loc in
+            // Fires once the CLLocationManager async callback delivers coordinates
+            guard let loc else { return }
+            withAnimation {
+                region = MKCoordinateRegion(
+                    center: loc,
+                    span: MKCoordinateSpan(latitudeDelta: 2, longitudeDelta: 2)
+                )
+            }
+        }
         .sheet(item: $selectedCrag) { crag in
             CragDetailSheet(crag: crag, snapshot: viewModel.snapshot(for: crag))
         }

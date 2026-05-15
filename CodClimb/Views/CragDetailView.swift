@@ -55,6 +55,7 @@ struct CragDetailView: View {
     @State private var showingAlertSheet = false
     @State private var shareImage: UIImage? = nil
     @State private var showingShareSheet = false
+    @State private var showingCragInfo = false
     @AppStorage("codclimb.useMetric") private var useMetric: Bool = false
 
     // Solar times recomputed whenever crag or date changes
@@ -136,6 +137,9 @@ struct CragDetailView: View {
             if let img = shareImage {
                 ShareActivitySheet(image: img, cragName: crag.name)
             }
+        }
+        .sheet(isPresented: $showingCragInfo) {
+            CragInfoSheet(crag: crag)
         }
     }
 
@@ -494,19 +498,34 @@ struct CragDetailView: View {
 
     private var cragInfoCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("About this crag")
-                .font(Theme.Typography.title)
-                .foregroundStyle(Theme.Palette.textPrimary)
+            HStack {
+                Text("About this crag")
+                    .font(Theme.Typography.title)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
             VStack(alignment: .leading, spacing: 8) {
                 infoRow(label: "Rock", value: crag.rockType)
+                infoRow(label: "Style", value: crag.inferredStyle.rawValue)
                 infoRow(label: "Aspect", value: crag.aspect)
+                infoRow(label: "Sun", value: crag.sunExposure.rawValue)
                 infoRow(label: "Elevation", value: "\(crag.elevationFt) ft")
-                infoRow(label: "Sub-areas", value: crag.subAreas.joined(separator: " · "))
+                if !crag.subAreas.isEmpty {
+                    infoRow(label: "Sub-areas", value: crag.subAreas.joined(separator: " · "))
+                }
                 Text(crag.notes)
                     .font(Theme.Typography.callout)
                     .foregroundStyle(Theme.Palette.textSecondary)
                     .padding(.top, 4)
                     .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(3)
+                Text("Tap to see more →")
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Palette.accent)
+                    .padding(.top, 2)
             }
             .padding(Theme.Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -519,6 +538,7 @@ struct CragDetailView: View {
                     .stroke(Theme.Palette.divider, lineWidth: 1)
             )
         }
+        .onTapGesture { showingCragInfo = true }
     }
 
     private func infoRow(label: String, value: String) -> some View {
@@ -532,6 +552,173 @@ struct CragDetailView: View {
                 .font(Theme.Typography.body)
                 .foregroundStyle(Theme.Palette.textPrimary)
             Spacer()
+        }
+    }
+}
+
+// MARK: - Crag Info Sheet (full details)
+
+struct CragInfoSheet: View {
+    let crag: Crag
+    @Environment(\.dismiss) private var dismiss
+
+    private var mapsURL: URL? {
+        let q = crag.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        return URL(string: "http://maps.apple.com/?q=\(q)&ll=\(crag.latitude),\(crag.longitude)")
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+
+                    // ── Hero ─────────────────────────────────────────────────
+                    CragHeroPhotoView(crag: crag, height: 160)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                    // ── Stat chips ────────────────────────────────────────────
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        CragStatChip(icon: "mountain.2.fill",   label: "Rock",      value: crag.rockType)
+                        CragStatChip(icon: crag.inferredStyle.icon, label: "Style", value: crag.inferredStyle.rawValue)
+                        CragStatChip(icon: crag.sunExposure.icon,   label: "Sun",   value: crag.sunExposure.rawValue)
+                        CragStatChip(icon: "arrow.up.right",    label: "Aspect",    value: crag.aspect)
+                        CragStatChip(icon: "chart.bar.fill",    label: "Elevation", value: "\(crag.elevationFt) ft")
+                        CragStatChip(icon: "mappin.circle.fill", label: "Region",   value: crag.region)
+                    }
+
+                    // ── Notes ─────────────────────────────────────────────────
+                    if !crag.notes.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Notes")
+                                .font(Theme.Typography.title)
+                                .foregroundStyle(Theme.Palette.textPrimary)
+                            Text(crag.notes)
+                                .font(Theme.Typography.callout)
+                                .foregroundStyle(Theme.Palette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .lineSpacing(4)
+                        }
+                        .padding(Theme.Metrics.cardPadding)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                            .fill(Theme.Palette.surface))
+                        .overlay(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                            .stroke(Theme.Palette.divider, lineWidth: 1))
+                    }
+
+                    // ── Sub-areas ─────────────────────────────────────────────
+                    if !crag.subAreas.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Sub-areas")
+                                .font(Theme.Typography.title)
+                                .foregroundStyle(Theme.Palette.textPrimary)
+                            FlowChips(items: crag.subAreas)
+                        }
+                        .padding(Theme.Metrics.cardPadding)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                            .fill(Theme.Palette.surface))
+                        .overlay(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                            .stroke(Theme.Palette.divider, lineWidth: 1))
+                    }
+
+                    // ── Coordinates + Directions ──────────────────────────────
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Location")
+                            .font(Theme.Typography.title)
+                            .foregroundStyle(Theme.Palette.textPrimary)
+                        HStack {
+                            Image(systemName: "location.fill")
+                                .foregroundStyle(Theme.Palette.accent)
+                            Text(String(format: "%.4f°, %.4f°", crag.latitude, crag.longitude))
+                                .font(Theme.Typography.callout)
+                                .foregroundStyle(Theme.Palette.textSecondary)
+                        }
+                        if let url = mapsURL {
+                            Link(destination: url) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "map.fill")
+                                    Text("Open in Apple Maps")
+                                        .fontWeight(.semibold)
+                                }
+                                .font(Theme.Typography.callout)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.Palette.accent))
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+                    .padding(Theme.Metrics.cardPadding)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                        .fill(Theme.Palette.surface))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.Metrics.cardCornerRadius)
+                        .stroke(Theme.Palette.divider, lineWidth: 1))
+                }
+                .padding(.horizontal, Theme.Metrics.cardPadding)
+                .padding(.bottom, 32)
+            }
+            .background(Theme.Palette.background.ignoresSafeArea())
+            .navigationTitle(crag.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                        .tint(Theme.Palette.accent)
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+}
+
+// Chip showing one crag stat
+private struct CragStatChip: View {
+    let icon: String
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundStyle(Theme.Palette.accent)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label.uppercased())
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+                    .tracking(0.5)
+                Text(value)
+                    .font(Theme.Typography.callout)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.Palette.surface))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.Palette.divider, lineWidth: 1))
+    }
+}
+
+// Simple wrapping chip list for sub-area names
+private struct FlowChips: View {
+    let items: [String]
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 90))], spacing: 8) {
+            ForEach(items, id: \.self) { item in
+                Text(item)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Theme.Palette.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.Palette.accentMuted))
+            }
         }
     }
 }
