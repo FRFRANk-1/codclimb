@@ -138,19 +138,22 @@ struct CragHeroPhotoView: View {
 
             // ── Gradient overlay ───────────────────────────────────────────
             LinearGradient(
-                colors: [Color.black.opacity(0.0), Color.black.opacity(0.58)],
-                startPoint: .top,
+                colors: [Color.black.opacity(0.0), Color.black.opacity(0.72)],
+                startPoint: .center,
                 endPoint: .bottom
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             // ── Crag name + attribution ────────────────────────────────────
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(crag.name)
                     .font(Theme.Typography.title)
                     .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                 Text(crag.region)
                     .font(Theme.Typography.callout)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 3, x: 0, y: 1)
 
                 // Unsplash attribution — required by API guidelines
                 if let info = photoInfo {

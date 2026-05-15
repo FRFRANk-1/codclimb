@@ -9,6 +9,7 @@ struct CommunityFeedView: View {
     @State private var showingSubmitSheet = false
     @State private var showingAuth = false
     @State private var selectedCragID: String? = nil
+    @State private var selectedRegion: String? = nil
 
     private let firebase = FirebaseService.shared
     private var isGuest: Bool { firebase.isAnonymous }
@@ -17,12 +18,27 @@ struct CommunityFeedView: View {
         (try? CragRepository.loadAll()) ?? []
     }
 
+    /// Unique regions that actually have at least one report, sorted alphabetically.
+    private var availableRegions: [String] {
+        let allReportCragIDs = Set(reportStore.recentReports(limit: 200).map(\.cragID))
+        let regions = crags
+            .filter { allReportCragIDs.contains($0.id) }
+            .map(\.region)
+        return Array(Set(regions)).sorted()
+    }
+
     private var allReports: [ConditionReport] {
         reportStore.recentReports(limit: 40)
     }
 
+    private var filteredReports: [ConditionReport] {
+        guard let region = selectedRegion else { return allReports }
+        let cragIDsInRegion = Set(crags.filter { $0.region == region }.map(\.id))
+        return allReports.filter { cragIDsInRegion.contains($0.cragID) }
+    }
+
     private var displayedReports: [ConditionReport] {
-        isGuest ? Array(allReports.prefix(3)) : allReports
+        isGuest ? Array(filteredReports.prefix(3)) : filteredReports
     }
 
     var body: some View {
@@ -30,6 +46,9 @@ struct CommunityFeedView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Metrics.sectionSpacing) {
                     feedHeader
+                    if !availableRegions.isEmpty {
+                        regionFilterBar
+                    }
                     liveStatusBanner
                     reportsSection
                 }
@@ -62,6 +81,26 @@ struct CommunityFeedView: View {
 
     // MARK: Sub-views
 
+    private var regionFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                // "All" chip
+                RegionChip(label: "All Areas", isSelected: selectedRegion == nil) {
+                    withAnimation(.easeInOut(duration: 0.2)) { selectedRegion = nil }
+                }
+                ForEach(availableRegions, id: \.self) { region in
+                    RegionChip(label: region, isSelected: selectedRegion == region) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedRegion = (selectedRegion == region) ? nil : region
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, Theme.Metrics.cardPadding)
+            .padding(.vertical, 2)
+        }
+    }
+
     private var feedHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Live from the Crags")
@@ -85,7 +124,9 @@ struct CommunityFeedView: View {
                         .stroke(Theme.Palette.send.opacity(0.3), lineWidth: 4)
                         .scaleEffect(1.6)
                 )
-            Text("\(displayedReports.count) reports in the last 7 days")
+            Text(selectedRegion == nil
+                 ? "\(filteredReports.count) reports in the last 7 days"
+                 : "\(filteredReports.count) reports in \(selectedRegion!)")
                 .font(Theme.Typography.callout)
                 .foregroundStyle(Theme.Palette.textSecondary)
             Spacer()
@@ -120,7 +161,7 @@ struct CommunityFeedView: View {
                         .environmentObject(reportStore)
                 }
                 // Gate card for guests
-                if isGuest && allReports.count > 3 {
+                if isGuest && filteredReports.count > 3 {
                     signInGateCard
                 }
             }
@@ -136,7 +177,7 @@ struct CommunityFeedView: View {
                     .foregroundStyle(Theme.Palette.accent)
             }
             VStack(spacing: 6) {
-                Text("\(allReports.count - 3) more reports")
+                Text("\(filteredReports.count - 3) more reports")
                     .font(Theme.Typography.headline)
                     .foregroundStyle(Theme.Palette.textPrimary)
                 Text("Create a free account to see all community reports, post your own conditions, and get crag alerts.")
@@ -247,6 +288,33 @@ struct EmptyStateTipChip: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(Capsule().fill(Theme.Palette.accentMuted))
+    }
+}
+
+// MARK: - Region filter chip
+
+struct RegionChip: View {
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? .white : Theme.Palette.textSecondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? Theme.Palette.accent : Theme.Palette.surface)
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(isSelected ? Color.clear : Theme.Palette.divider, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 

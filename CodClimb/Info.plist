@@ -59,6 +59,10 @@
 		<dict/>
 	</dict>
 
+	<!-- Location permission (for map "locate me" button) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>CodClimb uses your location to show nearby crags on the map.</string>
+
 	<!-- Misc -->
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
