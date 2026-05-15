@@ -74,6 +74,12 @@ final class UserProfileStore: ObservableObject {
         currentProfile = await fetchProfile(uid: firebase.currentUserID)
     }
 
+    /// Wipe local profile state after sign-out so no previous user's data leaks through.
+    func clearCurrentProfile() {
+        currentProfile = nil
+        viewedProfile = nil
+    }
+
     // MARK: - Load another user's profile
 
     func loadProfile(for displayName: String) async {

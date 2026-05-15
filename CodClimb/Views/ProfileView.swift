@@ -402,7 +402,13 @@ struct ProfileView: View {
 
     private var signOutButton: some View {
         Button {
-            Task { await FirebaseService.shared.signOut() }
+            Task {
+                await FirebaseService.shared.signOut()
+                // Clear all locally persisted identity so the next person
+                // who opens the app doesn't see the previous user's name.
+                username = ""
+                profileStore.clearCurrentProfile()
+            }
         } label: {
             Text("Sign Out")
                 .font(Theme.Typography.callout)
