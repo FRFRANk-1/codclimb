@@ -18,7 +18,7 @@ struct ProfileView: View {
     @State private var showingMyReports = false
     @State private var showingMySaved = false
 
-    private let firebase = FirebaseService.shared
+    @ObservedObject private var firebase: FirebaseService = .shared
     private var isGuest: Bool { firebase.isAnonymous }
     private var profile: UserProfile? { profileStore.currentProfile }
 
@@ -402,7 +402,13 @@ struct ProfileView: View {
 
     private var signOutButton: some View {
         Button {
-            Task { await FirebaseService.shared.signOut() }
+            Task {
+                await FirebaseService.shared.signOut()
+                // Clear all locally persisted identity so the next person
+                // who opens the app doesn't see the previous user's name.
+                username = ""
+                profileStore.clearCurrentProfile()
+            }
         } label: {
             Text("Sign Out")
                 .font(Theme.Typography.callout)
