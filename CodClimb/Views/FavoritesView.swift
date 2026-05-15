@@ -71,7 +71,7 @@ private struct BestDayPlannerCard: View {
     let crags: [Crag]
     let snapshots: [String: CragListViewModel.CragSnapshot]
 
-    private let scorer = ScoringService()
+    private let scorer = ScoringService(weights: .current)
 
     // Find the single best (crag, day) combo in the next 7 days, weekend-weighted
     private struct Recommendation {

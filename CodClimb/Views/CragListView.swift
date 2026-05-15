@@ -8,7 +8,7 @@ final class CragListViewModel: ObservableObject {
     @Published private(set) var loadError: String?
 
     private let client = OpenMeteoClient()
-    private let scorer = ScoringService()
+    private let scorer = ScoringService(weights: .current)
 
     /// Crag IDs whose fetch is currently in-flight (prevents duplicate concurrent requests).
     private var inFlight: Set<String> = []

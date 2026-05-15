@@ -141,7 +141,7 @@ final class NotificationService: ObservableObject {
         }
 
         let client = OpenMeteoClient()
-        let scorer = ScoringService()
+        let scorer = ScoringService(weights: .current)
 
         // Check each enabled crag
         for pref in enabledPrefs {

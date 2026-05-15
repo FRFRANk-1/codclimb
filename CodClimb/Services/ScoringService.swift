@@ -48,7 +48,7 @@ struct ScoringWeights {
 struct ScoringService {
     let weights: ScoringWeights
 
-    init(weights: ScoringWeights = .default) {
+    init(weights: ScoringWeights = .current) {
         self.weights = weights
     }
 

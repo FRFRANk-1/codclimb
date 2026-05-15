@@ -95,7 +95,7 @@ struct NotificationsListView: View {
                 ForEach(activePrefs) { pref in
                     if let weather = snapshots[pref.cragId] {
                         let bundle = weather.toWeatherBundle()
-                        let score = ScoringService().score(for: bundle)
+                        let score = ScoringService(weights: .current).score(for: bundle)
                         let meetsThreshold = score.value >= pref.threshold
 
                         HStack(spacing: 14) {
